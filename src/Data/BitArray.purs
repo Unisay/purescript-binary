@@ -2,6 +2,7 @@ module Data.BitArray
   ( class EncodeBinary
   , class DecodeBinary
   , class Binary
+  , Bit
   , Bits(..)
   , encodeBinary
   , decodeBinary
@@ -26,7 +27,7 @@ type Bit = Boolean
 newtype Bits = Bits (NonEmpty Array Bit)
 derive newtype instance eqBits :: Eq Bits
 derive newtype instance showBits :: Show Bits
-derive newtype instance semigroupBits :: Semigroup Bits
+-- derive newtype instance semigroupBits :: Semigroup Bits
 
 class EncodeBinary a where
   encodeBinary :: a -> Bits
@@ -45,17 +46,17 @@ instance decodeBinaryBoolean :: DecodeBinary Boolean where
 instance encodeBinaryInt :: EncodeBinary Int where
   encodeBinary i = Bits (true :| empty) -- TODO
 
-instance decodeBinaryInt :: DecodeBinary Int where
-  decodeBinary (Bits (NonEmpty true _)) = 42
-  decodeBinary bits = decodeBinary ((invert >>> increment) bits)
+-- instance decodeBinaryInt :: DecodeBinary Int where
+--   decodeBinary (Bits (NonEmpty true _)) = 42
+--   decodeBinary bits = decodeBinary ((invert >>> increment) bits)
 
 
-increment :: Bits -> Bits
-increment (Bits bs) = Bits (foldl f true bs) where
-  f true true   = Tuple2 false true
-  f true false  = Tuple2 true false
-  f false true  = Tuple2 true false
-  f false false = Tuple2 false false
+-- increment :: Bits -> Bits
+-- increment (Bits bs) = Bits (foldl f true bs) where
+--   f true true   = Tuple2 false true
+--   f true false  = Tuple2 true false
+--   f false true  = Tuple2 true false
+--   f false false = Tuple2 false false
 
 
 invert :: Bits -> Bits
