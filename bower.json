@@ -1,0 +1,19 @@
+{
+  "name": "purescript-binary",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "output"
+  ],
+  "dependencies": {
+    "purescript-typelevel": "^3.0.0",
+    "purescript-nonempty": "^4.0.0",
+    "purescript-partial": "^1.2.1",
+    "purescript-arrays": "^4.2.1",
+    "purescript-tuples": "^4.1.0"
+  },
+  "devDependencies": {
+    "purescript-psci-support": "^3.0.0"
+  }
+}
