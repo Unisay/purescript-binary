@@ -1,51 +1,53 @@
 module Data.Byte
   ( Byte(..)
-  , byte0
-  , byte1
-  , invert
-  , unsafeAdd
-  , add
   , unsafeAddNibble
   , addNibble
   ) where
 
-import Data.Nibble as N
-import Data.Nibble (Bit, Nibble, Overflow, nibble0, nibble1)
-import Data.Tuple.Nested (get1, tuple2, (/\))
-import Prelude hiding (add)
+import Data.BitOverflow (Bit, BitOverflow(..), discardBitOverflow)
+import Data.Bits (class Bits, add, foldInt, invert, leftShift, one, rightShift, toInt, toString, zero)
+import Data.Eq (class Eq)
+import Data.Nibble (Nibble)
+import Data.Semigroup ((<>))
+import Data.Semiring ((+))
+import Data.Show (class Show, show)
+import Data.Typelevel.Num (D8, d4)
 
 data Byte = Byte Nibble Nibble
 
 derive instance eqByte :: Eq Byte
 
 instance showByte :: Show Byte where
- show (Byte n1 n2) = show n1 <> show n2
+ show = toString
 
-byte0 :: Byte
-byte0 = Byte nibble0 nibble0
+instance bitsByte :: Bits D8 Byte where
+  invert (Byte n1 n2) = Byte (invert n1) (invert n2)
+  zero = Byte zero zero
+  one = Byte zero one
+  leftShift b (Byte n1 n2) =
+    let (BitOverflow n2' _n2) = leftShift b n2
+        (BitOverflow n1' _n1) = leftShift n2' n1
+    in BitOverflow n1' (Byte _n1 _n2)
+  rightShift b (Byte n1 n2) =
+    let (BitOverflow n2' _n2) = rightShift b n2
+        (BitOverflow n1' _n1) = rightShift n2' n1
+    in BitOverflow n1' (Byte _n1 _n2)
+  toString (Byte n1 n2) = show n1 <> show n2
+  foldInt p (Byte n1 n2) = toInt n2 + foldInt d4 n1
 
-byte1 :: Byte
-byte1 = Byte nibble0 nibble1
+  -- | Unsigned binary addition
+  -- | Accepts a carry-over bit from the previous addition
+  -- | Returns resulting byte with overflow bit
+  add bt (Byte a b) (Byte c d) =
+    let (BitOverflow f' f) = add bt b d
+        (BitOverflow e' e) = add f' a c
+    in BitOverflow e' (Byte e f)
 
-invert :: Byte -> Byte
-invert (Byte n1 n2) = Byte (N.invert n1) (N.invert n2)
 
--- | Unsigned binary addition
--- | Looses overflow bit
-unsafeAdd :: Byte -> Byte -> Byte
-unsafeAdd b1 b2 = get1 (add false b1 b2)
 
+-- | Discards overflow bit
 unsafeAddNibble :: Byte -> Nibble -> Byte
-unsafeAddNibble byte nibble = get1 (addNibble false byte nibble)
+unsafeAddNibble byte nibble = discardBitOverflow (addNibble false byte nibble)
 
-addNibble :: Bit -> Byte -> Nibble -> Overflow Byte
-addNibble bit byte nibble = add bit byte (Byte nibble0 nibble)
-
--- | Unsigned binary addition
--- | Accepts a carry-over bit from the previous addition
--- | Returns resulting byte with overflow bit
-add :: Bit -> Byte -> Byte -> Overflow Byte
-add bt (Byte a b) (Byte c d) =
-  let (f /\ f' /\ _) = N.add bt b d
-      (e /\ e' /\ _) = N.add f' a c
-  in tuple2 (Byte e f) e'
+addNibble :: Bit -> Byte -> Nibble -> BitOverflow Byte
+addNibble bit byte nibble = add bit byte (Byte zero nibble)
