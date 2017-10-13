@@ -1,31 +1,18 @@
-module Data.Nibble.Spec (spec, ArbNibble(..)) where
+module Data.Nibble.Spec
+  ( spec
+  ) where
 
 import Control.Monad.Eff.Random (RANDOM)
-import Data.Bit (Overflow(..), Bit)
-import Data.Bits (add, fromString, leftShift, rightShift, toInt, toString)
+import Data.Binary (Overflow(..), Bit(..), Nibble(..), add, fromString, leftShift, rightShift, toInt, toString)
+import Data.Binary.Arbitraty (ArbBit(..), ArbNibble(..))
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
-import Data.Nibble (Nibble(..))
 import Data.String (length, toCharArray)
-import Test.QuickCheck (class Arbitrary, Result, (<?>), (===))
-import Test.QuickCheck.Arbitrary (arbitrary)
+import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 import Prelude hiding (add)
 
-newtype ArbNibble = ArbNibble Nibble
-derive instance newtypeArbNibble :: Newtype ArbNibble _
-derive newtype instance eqArbNibble :: Eq ArbNibble
-derive newtype instance showArbNibble :: Show ArbNibble
-
-instance arbitraryNibble :: Arbitrary ArbNibble where
-  arbitrary = ArbNibble <$> (
-    Nibble <$> arbitrary
-           <*> arbitrary
-           <*> arbitrary
-           <*> arbitrary
-  )
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Nibble" do
@@ -49,15 +36,15 @@ propStringRoundtrip (ArbNibble n) = fromString (toString n) === Just n
 propAddition :: ArbNibble -> ArbNibble -> Result
 propAddition (ArbNibble a) (ArbNibble b) =
   case add a b of
-    (Overflow true _) -> (toInt a + toInt b) > 15 <?> "Unexpected overflow bit"
-    (Overflow false r) -> toInt a + toInt b === toInt r
+    (Overflow (Bit true) _) -> (toInt a + toInt b) > 15 <?> "Unexpected overflow bit"
+    (Overflow (Bit false) r) -> toInt a + toInt b === toInt r
 
-propLeftShift :: ArbNibble -> Bit -> Result
-propLeftShift (ArbNibble n@(Nibble a b c d)) e =
+propLeftShift :: ArbNibble -> ArbBit -> Result
+propLeftShift (ArbNibble n@(Nibble a b c d)) (ArbBit e) =
   let (Overflow a' (Nibble b' c' d' e')) = leftShift e n
   in [a, b, c, d, e] === [a', b', c', d', e']
 
-propRightShift :: Bit -> ArbNibble -> Result
-propRightShift a (ArbNibble n@(Nibble b c d e)) =
+propRightShift :: ArbBit -> ArbNibble -> Result
+propRightShift (ArbBit a) (ArbNibble n@(Nibble b c d e)) =
   let (Overflow e' (Nibble a' b' c' d')) = rightShift a n
   in [a, b, c, d, e] === [a', b', c', d', e']
