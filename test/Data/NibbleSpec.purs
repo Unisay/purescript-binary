@@ -1,4 +1,4 @@
-module Data.Nibble.Spec (spec) where
+module Data.Nibble.Spec (spec, ArbNibble(..)) where
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Bit (Overflow(..), Bit)
@@ -53,7 +53,7 @@ propAddition (ArbNibble a) (ArbNibble b) =
     (Overflow false r) -> toInt a + toInt b === toInt r
 
 propLeftShift :: ArbNibble -> Bit -> Result
-propLeftShift (ArbNibble n@(Nibble a b c d )) e =
+propLeftShift (ArbNibble n@(Nibble a b c d)) e =
   let (Overflow a' (Nibble b' c' d' e')) = leftShift e n
   in [a, b, c, d, e] === [a', b', c', d', e']
 

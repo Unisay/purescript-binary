@@ -30,15 +30,15 @@ instance bitsByte :: Bits D8 Byte where
 
   one = Byte zero one
 
-  leftShift b (Byte n1 n2) =
-    let (Overflow n2' _n2) = leftShift b n2
-        (Overflow n1' _n1) = leftShift n2' n1
-    in Overflow n1' (Byte _n1 _n2)
+  leftShift b (Byte h l) =
+    let (Overflow o l') = leftShift b l
+        (Overflow o' h') = leftShift o h
+    in Overflow o' (Byte h' l')
 
-  rightShift b (Byte n1 n2) =
-    let (Overflow n2' _n2) = rightShift b n2
-        (Overflow n1' _n1) = rightShift n2' n1
-    in Overflow n1' (Byte _n1 _n2)
+  rightShift b (Byte h l) =
+    let (Overflow o h') = rightShift b h
+        (Overflow o' l') = rightShift o l
+    in Overflow o' (Byte h' l')
 
   toString (Byte n1 n2) = show n1 <> show n2
 
@@ -53,11 +53,10 @@ instance bitsByte :: Bits D8 Byte where
   -- | Unsigned binary addition
   -- | Accepts a carry-over bit from the previous addition
   -- | Returns resulting byte with overflow bit
-  add' bt (Byte a b) (Byte c d) =
-    let (Overflow f' f) = add' bt b d
-        (Overflow e' e) = add' f' a c
-    in Overflow e' (Byte e f)
-
+  add' o (Byte h l) (Byte h' l') =
+    let (Overflow o _l) = add' o l l'
+        (Overflow _o _h) = add' o h h'
+    in Overflow _o (Byte _h _l)
 
 
 -- | Discards overflow bit

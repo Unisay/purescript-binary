@@ -7,6 +7,7 @@ import Control.Monad.Eff.Random (RANDOM)
 import Test.Unit.Console (TESTOUTPUT)
 import Test.Unit.Main (runTest)
 import Prelude hiding (add)
+import Data.Byte.Spec as Byte
 import Data.Nibble.Spec as Nibble
 
 main :: ∀ e. Eff ( console     :: CONSOLE
@@ -17,3 +18,4 @@ main :: ∀ e. Eff ( console     :: CONSOLE
                  ) Unit
 main = runTest do
   Nibble.spec
+  Byte.spec
