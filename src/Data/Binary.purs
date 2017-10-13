@@ -32,16 +32,22 @@ import Control.Bind ((>>=))
 import Control.Monad (ifM)
 import Data.BooleanAlgebra (not)
 import Data.Eq (class Eq, (/=), (==))
-import Data.Function (($), (>>>))
+import Data.Foldable (foldMap, foldr)
+import Data.Function (const, ($), (>>>))
+import Data.Functor (map)
 import Data.Int (pow)
 import Data.Maybe (Maybe(..))
 import Data.Ord (class Ord, compare)
 import Data.Semigroup ((<>))
 import Data.Semiring ((*), (+))
 import Data.Show (class Show, show)
-import Data.Typelevel.Num (class Add, class LtEq, class Nat, class Pos, D1, D4, D8, d0, d4)
+import Data.Tuple (Tuple(Tuple))
+import Data.Typelevel.Num (class Add, class Lt, class LtEq, class Min, class Mul, class Nat, class Pos, class Succ, D0, D1, D4, D8, d0, d4)
 import Data.Typelevel.Num.Aliases (D32)
 import Data.Typelevel.Undefined (undefined)
+import Data.Unit (unit)
+import Data.Vec (Vec, empty, modifyAt, replicate, zip, (+>))
+import Unsafe.Coerce (unsafeCoerce)
 
 
 newtype Bit = Bit Boolean
@@ -49,7 +55,7 @@ derive newtype instance eqBit :: Eq Bit
 instance showBit :: Show Bit where
   show = toString
 
-class Pos n <= Binary n a | a -> n, n -> a where
+class Pos n <= Binary n a | a -> n where
   invert :: a -> a
   add' :: Bit -> a -> a -> Overflow a
   zero :: a
@@ -130,7 +136,7 @@ data Nibble = Nibble Bit Bit Bit Bit
 derive instance eqNibble :: Eq Nibble
 
 instance showNibble :: Show Nibble where
-  show n = toString n
+  show = toString
 
 instance ordNibble :: Ord Nibble where
   compare l r = compare (toString l) (toString r)
@@ -217,12 +223,24 @@ instance bitsByte :: Binary D8 Byte where
     in Overflow o'' (Byte h'' l'')
 
 
--- instance bitSizedVectorOfBytes :: (Pos s, Mul s D8 b, Pos b) => Binary b (Vec s Byte) where
---   invert = map invert
---   zero = replicate undefined zero
---   add' bit v1 v2 = ?add
---   leftShift _ = ?leftShift
---   rightShift _ = ?rightShift
---   toString = foldMap toString
---   fromString s = ?fromString
---   foldInt _ _ = ?foldInt
+instance bitSizedVectorOfBytes :: (Pos s, Mul s D8 b, Pos b) => Binary b (Vec s Byte) where
+  invert = map invert
+  zero = replicate undefined zero
+
+  add' bit v1 v2 = unsafeCoerce res where
+    res = Overflow folded.over folded.vec
+    folded :: { over:: Bit, vec:: Vec s Byte }
+    folded = foldr f { "over": bit, "vec": empty } vectors
+    vectors :: Vec s (Tuple Byte Byte)
+    vectors = zip v1 v2
+    f :: ∀ l m. Nat l => Succ l m => Tuple Byte Byte -> { over:: Bit, vec:: Vec l Byte } -> { over:: Bit, vec:: Vec m Byte }
+    f (Tuple a b) { over: o, vec: v } =
+      let (Overflow o' ab) = add' o a b
+      in { over: o', vec: ab +> v }
+
+
+  leftShift _ = unsafeCoerce unit
+  rightShift _ = unsafeCoerce unit
+  toString = foldMap toString
+  fromString s = unsafeCoerce unit
+  foldInt _ _ = unsafeCoerce unit
