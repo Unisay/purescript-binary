@@ -2,12 +2,21 @@ module Data.Nibble
   ( Nibble (..)
   ) where
 
-import Data.BitOverflow (Bit, BitOverflow(BitOverflow))
-import Data.Bits (class Bits, toString)
 import Data.Typelevel.Num as N
-import Data.Typelevel.Num (D4)
+import Control.Apply ((<$>), (<*>))
+import Data.Bit (Bit, Overflow(Overflow), bitToString, charToBit)
+import Data.Bits (class Bits, toString)
+import Data.BooleanAlgebra (not)
+import Data.Eq (class Eq)
+import Data.Function ((>>>))
 import Data.Int (pow)
-import Prelude hiding (add)
+import Data.Maybe (Maybe(..))
+import Data.Ord (class Ord, compare)
+import Data.Semigroup ((<>))
+import Data.Semiring ((*), (+))
+import Data.Show (class Show)
+import Data.String (toCharArray)
+import Data.Typelevel.Num (D4)
 
 data Nibble = Nibble Bit Bit Bit Bit
 
@@ -25,29 +34,41 @@ instance bitsNibble :: Bits D4 Nibble where
   -- | Unsigned binary addition
   -- | Accepts a carry-over bit from the previous addition
   -- | Returns resulting `Nibble` with overflow bit
-  add b (Nibble a0 b0 c0 d0) (Nibble a1 b1 c1 d1) =
-    let (BitOverflow d' d) = addBits d0 d1 b
-        (BitOverflow c' c) = addBits c0 c1 d'
-        (BitOverflow b' b) = addBits b0 b1 c'
-        (BitOverflow a' a) = addBits a0 a1 b'
-    in BitOverflow a' (Nibble a b c d) where
+  add' b (Nibble a0 b0 c0 d0) (Nibble a1 b1 c1 d1) =
+    let (Overflow d' d) = addBits d0 d1 b
+        (Overflow c' c) = addBits c0 c1 d'
+        (Overflow b' b) = addBits b0 b1 c'
+        (Overflow a' a) = addBits a0 a1 b'
+    in Overflow a' (Nibble a b c d) where
 
-    addBits :: Bit -> Bit -> Bit -> BitOverflow Bit
-    addBits false false false = BitOverflow false false
-    addBits false false true  = BitOverflow false true
-    addBits false true  false = BitOverflow false true
-    addBits false true  true  = BitOverflow true false
-    addBits true  false false = BitOverflow false true
-    addBits true  false true  = BitOverflow true false
-    addBits true  true  false = BitOverflow true false
-    addBits true  true  true  = BitOverflow true true
+    addBits :: Bit -> Bit -> Bit -> Overflow Bit
+    addBits false false false = Overflow false false
+    addBits false false true  = Overflow false true
+    addBits false true  false = Overflow false true
+    addBits false true  true  = Overflow true false
+    addBits true  false false = Overflow false true
+    addBits true  false true  = Overflow true false
+    addBits true  true  false = Overflow true false
+    addBits true  true  true  = Overflow true true
 
   zero = Nibble false false false false
   one = Nibble false false false true
-  leftShift z (Nibble a b c d) = BitOverflow a (Nibble b c d z)
-  rightShift z (Nibble a b c d) = BitOverflow d (Nibble z a b c)
-  toString (Nibble a b c d) = bit a <> bit b <> bit c <> bit d
-    where bit = if _ then "1" else "0"
+
+  leftShift z (Nibble a b c d) = Overflow a (Nibble b c d z)
+  rightShift z (Nibble a b c d) = Overflow d (Nibble z a b c)
+
+  toString (Nibble a b c d) =
+    bitToString a <> bitToString b <> bitToString c <> bitToString d
+
+  fromString = toCharArray >>> fromChars where
+    fromChars cs =
+      case cs of
+      [a, b, c, d] -> Nibble <$> charToBit a
+                             <*> charToBit b
+                             <*> charToBit c
+                             <*> charToBit d
+      otherwise -> Nothing
+
   foldInt p (Nibble a b c d) =
     let i = N.toInt p
         bit = if _ then 1 else 0
