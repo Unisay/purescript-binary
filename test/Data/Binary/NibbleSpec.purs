@@ -3,7 +3,7 @@ module Data.Nibble.Spec
   ) where
 
 import Control.Monad.Eff.Random (RANDOM)
-import Data.Binary (Overflow(..), Bit(..), Nibble(..), add, fromString, leftShift, rightShift, toInt, toString)
+import Data.Binary (Overflow(..), Bit(..), Nibble(..), add, fromBinString, toBinString, leftShift, rightShift, toInt)
 import Data.Binary.Arbitraty (ArbBit(..), ArbNibble(..))
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
@@ -17,22 +17,22 @@ import Prelude hiding (add)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Nibble" do
-  test "toString has length 4" $ quickCheck propToStringLength
-  test "toString contains only 0 and 1" $ quickCheck propHasBinDigits
-  test "toString >>> fromString" $ quickCheck propStringRoundtrip
+  test "toBinString has length 4" $ quickCheck propToStringLength
+  test "toBinString contains only 0 and 1" $ quickCheck propHasBinDigits
+  test "toBinString >>> fromBinString" $ quickCheck propStringRoundtrip
   test "addition works like Int" $ quickCheck propAddition
   test "left shift" $ quickCheck propLeftShift
   test "right shift" $ quickCheck propRightShift
 
 propToStringLength :: ArbNibble -> Result
-propToStringLength (ArbNibble n) = 4 === length (toString n)
+propToStringLength (ArbNibble n) = 4 === length (toBinString n)
 
 propHasBinDigits :: ArbNibble -> Result
-propHasBinDigits (ArbNibble n) = (all (\d -> d == '1' || d == '0') $ toCharArray (toString n))
+propHasBinDigits (ArbNibble n) = (all (\d -> d == '1' || d == '0') $ toCharArray (toBinString n))
   <?> "String representation of Nibble contains not only digits 1 and 0"
 
 propStringRoundtrip :: ArbNibble -> Result
-propStringRoundtrip (ArbNibble n) = fromString (toString n) === Just n
+propStringRoundtrip (ArbNibble n) = fromBinString (toBinString n) === Just n
 
 propAddition :: ArbNibble -> ArbNibble -> Result
 propAddition (ArbNibble a) (ArbNibble b) =

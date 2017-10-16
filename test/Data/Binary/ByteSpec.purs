@@ -1,7 +1,7 @@
 module Data.Byte.Spec (spec) where
 
 import Control.Monad.Eff.Random (RANDOM)
-import Data.Binary (Overflow(..), Bit(..), Nibble(..), Byte(..), add, fromString, leftShift, rightShift, toInt, toString)
+import Data.Binary (Overflow(..), Bit(..), Nibble(..), Byte(..), add, fromBinString, toBinString, leftShift, rightShift, toInt)
 import Data.Binary.Arbitraty (ArbBit(..), ArbByte(..))
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
@@ -14,22 +14,22 @@ import Prelude hiding (add)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Byte" do
-  test "toString has length 8" $ quickCheck propToStringLength
-  test "toString contains only 0 and 1" $ quickCheck propHasBinDigits
-  test "toString >>> fromString" $ quickCheck propStringRoundtrip
+  test "toBinString has length 8" $ quickCheck propToStringLength
+  test "toBinString contains only 0 and 1" $ quickCheck propHasBinDigits
+  test "toBinString >>> fromBinString" $ quickCheck propStringRoundtrip
   test "addition works like Int" $ quickCheck propAddition
   test "left shift" $ quickCheck propLeftShift
   test "right shift" $ quickCheck propRightShift
 
 propToStringLength :: ArbByte -> Result
-propToStringLength (ArbByte n) = 8 === length (toString n)
+propToStringLength (ArbByte n) = 8 === length (toBinString n)
 
 propHasBinDigits :: ArbByte -> Result
-propHasBinDigits (ArbByte n) = (all (\d -> d == '1' || d == '0') $ toCharArray (toString n))
+propHasBinDigits (ArbByte n) = (all (\d -> d == '1' || d == '0') $ toCharArray (toBinString n))
   <?> "String representation of Byte contains not only digits 1 and 0"
 
 propStringRoundtrip :: ArbByte -> Result
-propStringRoundtrip (ArbByte n) = fromString (toString n) === Just n
+propStringRoundtrip (ArbByte n) = fromBinString (toBinString n) === Just n
 
 propAddition :: ArbByte -> ArbByte -> Result
 propAddition (ArbByte a) (ArbByte b) =

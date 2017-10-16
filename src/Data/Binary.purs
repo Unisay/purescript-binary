@@ -17,8 +17,8 @@ module Data.Binary
   , unsafeLeftShift
   , rightShift
   , unsafeRightShift
-  , toString
-  , fromString
+  , toBinString
+  , fromBinString
   , toIntPos
   , toInt
   , fromInt
@@ -30,26 +30,30 @@ import Data.String as Str
 import Conditional (ifelse)
 import Control.Applicative (pure)
 import Control.Apply ((<$>), (<*>))
-import Control.Bind ((>>=), bind)
+import Control.Bind (bind, (>>=))
 import Control.Monad (ifM)
-import Data.Array ((!!))
+import Data.Array (foldMap, foldl, foldr)
 import Data.Boolean (otherwise)
 import Data.BooleanAlgebra (not, (&&))
-import Data.Eq (class Eq, (/=), (==))
-import Data.EuclideanRing (div, mod)
-import Data.Function (($), (>>>))
+import Data.Eq (class Eq, (==))
+import Data.EuclideanRing (div, mod, (-))
+import Data.Function (flip, ($), (>>>))
+import Data.Functor (class Functor, map)
 import Data.Int (pow)
-import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Ord (class Ord, compare, (<), (<=), (>=))
+import Data.Maybe (Maybe(Nothing, Just), fromMaybe)
+import Data.Ord (class Ord, compare, max, (<), (<=), (>=))
 import Data.Semigroup ((<>))
 import Data.Semiring ((*), (+))
 import Data.Show (class Show, show)
+import Data.Tuple (Tuple(Tuple))
+import Data.Unit (unit)
+import Unsafe.Coerce (unsafeCoerce)
 
 
 newtype Bit = Bit Boolean
 derive newtype instance eqBit :: Eq Bit
 instance showBit :: Show Bit where
-  show = toString
+  show = toBinString
 
 class Binary a where
   invert :: a -> a
@@ -59,8 +63,8 @@ class Binary a where
   rightShift :: Bit -> a -> Overflow a
   toIntPos :: Int -> a -> Maybe Int
   fromInt :: Int -> Maybe a
-  toString :: a -> String
-  fromString :: String -> Maybe a
+  toBinString :: a -> String
+  fromBinString :: String -> Maybe a
 
 toInt :: ∀ a. Binary a => a -> Maybe Int
 toInt = toIntPos 0
@@ -82,8 +86,8 @@ instance binaryBit :: Binary Bit where
   leftShift b a = Overflow a b
   rightShift b a = Overflow a b
 
-  toString = bitToChar >>> Str.singleton
-  fromString s = ifM (Just $ Str.length s == 1) (Str.charAt 0 s >>= charToBit) Nothing
+  toBinString = bitToChar >>> Str.singleton
+  fromBinString s = ifM (Just $ Str.length s == 1) (Str.charAt 0 s >>= charToBit) Nothing
 
   toIntPos p (Bit b) | p >= 0 && p <= 32 = Just (pow 2 p *  ifelse b 1 0)
   toIntPos _ _ = Nothing
@@ -98,6 +102,9 @@ derive instance eqOverflow :: Eq a => Eq (Overflow a)
 instance showOverflow :: Show a => Show (Overflow a) where
   show (Overflow (Bit true) b) = show b <> " with one bit overflow"
   show (Overflow (Bit false) b) = show b <> " without overflow"
+
+instance functorOverflow :: Functor Overflow where
+  map f (Overflow o a) = Overflow o (f a)
 
 discardOverflow :: ∀ a. Overflow a -> a
 discardOverflow (Overflow _ a) = a
@@ -135,10 +142,10 @@ data Nibble = Nibble Bit Bit Bit Bit
 derive instance eqNibble :: Eq Nibble
 
 instance showNibble :: Show Nibble where
-  show = toString
+  show = toBinString
 
 instance ordNibble :: Ord Nibble where
-  compare l r = compare (toString l) (toString r)
+  compare l r = compare (toBinString l) (toBinString r)
 
 instance bitsNibble :: Binary Nibble where
   invert (Nibble a b c d) = Nibble (invert a) (invert b) (invert c) (invert d)
@@ -158,17 +165,13 @@ instance bitsNibble :: Binary Nibble where
   leftShift z (Nibble a b c d) = Overflow a (Nibble b c d z)
   rightShift z (Nibble a b c d) = Overflow d (Nibble z a b c)
 
-  toString (Nibble a b c d) =
-    toString a <> toString b <> toString c <> toString d
+  toBinString (Nibble a b c d) =
+    toBinString a <> toBinString b <> toBinString c <> toBinString d
 
-  fromString = Str.toCharArray >>> fromChars where
-    fromChars cs =
-      case cs of
-      [a, b, c, d] -> Nibble <$> charToBit a
-                             <*> charToBit b
-                             <*> charToBit c
-                             <*> charToBit d
-      otherwise -> Nothing
+  fromBinString s | Str.length s < 5 =
+    Just $ Nibble (b 0) (b 1) (b 2) (b 3)
+      where b i = fromMaybe zero (Str.charAt i s >>= charToBit)
+  fromBinString _ = Nothing
 
   toIntPos p (Nibble a b c d) =
     let bin (Bit bt) = ifelse bt 1 0
@@ -178,14 +181,8 @@ instance bitsNibble :: Binary Nibble where
             + pow 2 p * bin d
 
   fromInt 0 = Just zero
-  fromInt i =
-    let bs = intToBitArray i
-    in if A.length bs < 5
-       then Just (Nibble (fromMaybe zero (bs !! 3))
-                         (fromMaybe zero (bs !! 2))
-                         (fromMaybe zero (bs !! 1))
-                         (fromMaybe zero (bs !! 0)))
-       else Nothing
+  fromInt i | [a, b, c, d] <- leftPadZero 4 (intToBitArray i) = Just (Nibble a b c d)
+  fromInt _ = Nothing
 
 
 intToBitArray :: Int -> Array Bit
@@ -198,7 +195,7 @@ data Byte = Byte Nibble Nibble
 derive instance eqByte :: Eq Byte
 
 instance showByte :: Show Byte where
- show = toString
+ show = toBinString
 
 instance bitsByte :: Binary Byte where
   invert (Byte n1 n2) = Byte (invert n1) (invert n2)
@@ -215,13 +212,13 @@ instance bitsByte :: Binary Byte where
         (Overflow o' l') = rightShift o l
     in Overflow o' (Byte h' l')
 
-  toString (Byte n1 n2) = show n1 <> show n2
+  toBinString (Byte n1 n2) = show n1 <> show n2
 
-  fromString s =
-    if Str.length s /= 8
-    then Nothing
-    else Byte <$> fromString (Str.take 4 s)
-              <*> fromString (Str.drop 4 s)
+  fromBinString s | Str.length s < 5 = Byte zero <$> fromBinString s
+  fromBinString s | Str.length s < 9 = do
+    { before: h, after: l } <- Str.splitAt (Str.length s - 4) s
+    Byte <$> fromBinString h <*> fromBinString l
+  fromBinString _ = Nothing
 
   -- | Unsigned binary addition
   -- | Accepts a carry-over bit from the previous addition
@@ -232,23 +229,47 @@ instance bitsByte :: Binary Byte where
     in Overflow o'' (Byte h'' l'')
 
   fromInt 0 = Just zero
-  fromInt i =
-    let bs = intToBitArray i
-    in if A.length bs < 9
-       then Just (
-         Byte
-          (Nibble (fromMaybe zero (bs !! 7))
-                  (fromMaybe zero (bs !! 6))
-                  (fromMaybe zero (bs !! 5))
-                  (fromMaybe zero (bs !! 4)))
-          (Nibble (fromMaybe zero (bs !! 3))
-                  (fromMaybe zero (bs !! 2))
-                  (fromMaybe zero (bs !! 1))
-                  (fromMaybe zero (bs !! 0)))
-         )
-       else Nothing
+  fromInt i | [a, b, c, d, e, f, g, h] <- leftPadZero 8 (intToBitArray i) =
+    Just (Byte (Nibble a b c d) (Nibble e f g h))
+  fromInt _ = Nothing
 
   toIntPos p (Byte h l) = do
     l' <- toIntPos p l
     h' <- toIntPos (p + 4) h
     pure (l' + h')
+
+notImplemented :: ∀ a . a
+notImplemented = unsafeCoerce unit
+
+leftPadZero :: ∀ a. Binary a => Int -> Array a -> Array a
+leftPadZero l xs | A.length xs < l = leftPadZero l (A.cons zero xs)
+leftPadZero _ xs = xs
+
+instance binaryArrayByte :: Binary (Array Byte) where
+  invert = map invert
+  zero = pure zero
+
+  add' bit as bs = foldr f acc pairs where
+    f (Tuple a b) (Overflow o t) = flip A.cons t <$> add' o a b
+    acc = Overflow bit []
+    pairs = A.zip (leftPadZero len as) (leftPadZero len bs)
+    len = max (A.length as) (A.length bs)
+
+  leftShift bit = foldr f acc where
+    acc = Overflow bit []
+    f a (Overflow o t) = flip A.cons t <$> leftShift o a
+
+  rightShift bit = foldl f acc where
+    acc = Overflow bit []
+    f (Overflow o t) a = A.snoc t <$> rightShift o a
+
+  toBinString = foldMap toBinString
+
+  fromBinString s | Str.length s < 9 = A.singleton <$> fromBinString (Str.take 8 s)
+  fromBinString s = A.cons <$> fromBinString (Str.take 8 s) <*> fromBinString (Str.drop 8 s)
+
+  -- toIntPos :: Int -> a -> Maybe Int
+  toIntPos = notImplemented
+
+  -- fromInt :: Int -> Maybe a
+  fromInt = notImplemented
