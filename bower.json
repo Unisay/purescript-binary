@@ -7,14 +7,12 @@
     "output"
   ],
   "dependencies": {
-    "purescript-typelevel": "^3.0.0",
     "purescript-nonempty": "^4.0.0",
     "purescript-partial": "^1.2.1",
     "purescript-arrays": "^4.2.1",
     "purescript-tuples": "^4.1.0",
     "purescript-integers": "^3.1.0",
     "purescript-maybe": "^3.0.0",
-    "purescript-sized-vectors": "^2.2.0",
     "purescript-conditional": "^2.0.0"
   },
   "devDependencies": {

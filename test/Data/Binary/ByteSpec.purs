@@ -9,6 +9,7 @@ import Data.String (length, toCharArray)
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
+import Data.Semiring as S
 import Prelude hiding (add)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
@@ -34,9 +35,10 @@ propAddition :: ArbByte -> ArbByte -> Result
 propAddition (ArbByte a) (ArbByte b) =
   case add a b of
     (Overflow (Bit true) _) ->
-      (toInt a + toInt b) > 15 <?> ("Unexpected overflow bit (" <> show a <> "" <> show b <> ")")
+       let c = S.add <$> toInt a <*> toInt b
+       in c > Just 15 <?> ("Unexpected overflow bit (" <> show a <> "" <> show b <> ")")
     (Overflow (Bit false) r) ->
-      let ab = toInt a + toInt b
+      let ab = S.add <$> toInt a <*> toInt b
           res = ab == toInt r
       in res <?> "(toInt a + toInt b) /= toInt (add a b)"
               <> ", where a = " <> show a <> " (" <> show (toInt a) <> ")"

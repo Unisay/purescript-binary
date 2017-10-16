@@ -11,6 +11,7 @@ import Data.String (length, toCharArray)
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
+import Data.Semiring as S
 import Prelude hiding (add)
 
 
@@ -36,8 +37,12 @@ propStringRoundtrip (ArbNibble n) = fromString (toString n) === Just n
 propAddition :: ArbNibble -> ArbNibble -> Result
 propAddition (ArbNibble a) (ArbNibble b) =
   case add a b of
-    (Overflow (Bit true) _) -> (toInt a + toInt b) > 15 <?> "Unexpected overflow bit"
-    (Overflow (Bit false) r) -> toInt a + toInt b === toInt r
+    (Overflow (Bit true) _) ->
+      let c = S.add <$> toInt a <*> toInt b
+      in c > Just 15 <?> "Unexpected overflow bit"
+    (Overflow (Bit false) r) ->
+      let c = S.add <$> toInt a <*> toInt b
+      in c === toInt r
 
 propLeftShift :: ArbNibble -> ArbBit -> Result
 propLeftShift (ArbNibble n@(Nibble a b c d)) (ArbBit e) =

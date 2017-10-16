@@ -19,35 +19,31 @@ module Data.Binary
   , unsafeRightShift
   , toString
   , fromString
-  , foldInt
+  , toIntPos
   , toInt
-  , sizeOf
+  , fromInt
+  , intToBitArray
   ) where
 
+import Data.Array as A
 import Data.String as Str
-import Data.Typelevel.Num as N
 import Conditional (ifelse)
+import Control.Applicative (pure)
 import Control.Apply ((<$>), (<*>))
-import Control.Bind ((>>=))
+import Control.Bind ((>>=), bind)
 import Control.Monad (ifM)
-import Data.BooleanAlgebra (not)
+import Data.Array ((!!))
+import Data.Boolean (otherwise)
+import Data.BooleanAlgebra (not, (&&))
 import Data.Eq (class Eq, (/=), (==))
-import Data.Foldable (foldMap, foldr)
-import Data.Function (const, ($), (>>>))
-import Data.Functor (map)
+import Data.EuclideanRing (div, mod)
+import Data.Function (($), (>>>))
 import Data.Int (pow)
-import Data.Maybe (Maybe(..))
-import Data.Ord (class Ord, compare)
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Ord (class Ord, compare, (<), (<=), (>=))
 import Data.Semigroup ((<>))
 import Data.Semiring ((*), (+))
 import Data.Show (class Show, show)
-import Data.Tuple (Tuple(Tuple))
-import Data.Typelevel.Num (class Add, class Lt, class LtEq, class Min, class Mul, class Nat, class Pos, class Succ, D0, D1, D4, D8, d0, d4)
-import Data.Typelevel.Num.Aliases (D32)
-import Data.Typelevel.Undefined (undefined)
-import Data.Unit (unit)
-import Data.Vec (Vec, empty, modifyAt, replicate, zip, (+>))
-import Unsafe.Coerce (unsafeCoerce)
 
 
 newtype Bit = Bit Boolean
@@ -55,17 +51,21 @@ derive newtype instance eqBit :: Eq Bit
 instance showBit :: Show Bit where
   show = toString
 
-class Pos n <= Binary n a | a -> n where
+class Binary a where
   invert :: a -> a
   add' :: Bit -> a -> a -> Overflow a
   zero :: a
   leftShift :: Bit -> a -> Overflow a
   rightShift :: Bit -> a -> Overflow a
+  toIntPos :: Int -> a -> Maybe Int
+  fromInt :: Int -> Maybe a
   toString :: a -> String
   fromString :: String -> Maybe a
-  foldInt :: ∀ p. Nat p => p -> a -> Int
 
-instance binaryBit :: Binary D1 Bit where
+toInt :: ∀ a. Binary a => a -> Maybe Int
+toInt = toIntPos 0
+
+instance binaryBit :: Binary Bit where
   invert (Bit b) = Bit (not b)
 
   add' (Bit false) (Bit false) (Bit false) = Overflow zero zero
@@ -85,7 +85,12 @@ instance binaryBit :: Binary D1 Bit where
   toString = bitToChar >>> Str.singleton
   fromString s = ifM (Just $ Str.length s == 1) (Str.charAt 0 s >>= charToBit) Nothing
 
-  foldInt p (Bit b) = pow 2 (N.toInt p) * ifelse b 1 0
+  toIntPos p (Bit b) | p >= 0 && p <= 32 = Just (pow 2 p *  ifelse b 1 0)
+  toIntPos _ _ = Nothing
+
+  fromInt 0 = Just zero
+  fromInt 1 = Just one
+  fromInt _ = Nothing
 
 data Overflow a = Overflow Bit a
 
@@ -106,29 +111,23 @@ bitToChar :: Bit -> Char
 bitToChar (Bit true)  = '1'
 bitToChar (Bit false) = '0'
 
-toInt :: ∀ a n. Binary n a => LtEq n D32 => a -> Int
-toInt = foldInt d0
-
 -- | Unsigned binary addition
 -- | Returns overflow bit
-add :: ∀ n a. Binary n a => a -> a -> Overflow a
+add :: ∀ a. Binary a => a -> a -> Overflow a
 add = add' zero
 
 -- | Unsigned binary addition
 -- | Discards overflow bit
-unsafeAdd :: ∀ n a. Binary n a => a -> a -> a
+unsafeAdd :: ∀ a. Binary a => a -> a -> a
 unsafeAdd a1 a2 = discardOverflow (add a1 a2)
 
-unsafeRightShift :: ∀ n a. Binary n a => a -> a
+unsafeRightShift :: ∀ a. Binary a => a -> a
 unsafeRightShift a = discardOverflow (rightShift zero a)
 
-unsafeLeftShift :: ∀ n a. Binary n a => a -> a
+unsafeLeftShift :: ∀ a. Binary a => a -> a
 unsafeLeftShift a = discardOverflow (leftShift zero a)
 
-sizeOf :: ∀ n a. Binary n a => n -> Int
-sizeOf = N.toInt
-
-one :: ∀ n a. Binary n a => a
+one :: ∀ a. Binary a => a
 one = discardOverflow (leftShift (Bit true) zero)
 
 data Nibble = Nibble Bit Bit Bit Bit
@@ -141,7 +140,7 @@ instance showNibble :: Show Nibble where
 instance ordNibble :: Ord Nibble where
   compare l r = compare (toString l) (toString r)
 
-instance bitsNibble :: Binary D4 Nibble where
+instance bitsNibble :: Binary Nibble where
   invert (Nibble a b c d) = Nibble (invert a) (invert b) (invert c) (invert d)
 
   -- | Unsigned binary addition
@@ -171,16 +170,28 @@ instance bitsNibble :: Binary D4 Nibble where
                              <*> charToBit d
       otherwise -> Nothing
 
-  foldInt p (Nibble a b c d) =
-    let i = N.toInt p
-        bin (Bit bt) = ifelse bt 1 0
-    in pow 2 (i + 3) * bin a
-     + pow 2 (i + 2) * bin b
-     + pow 2 (i + 1) * bin c
-     + pow 2 (i + 0) * bin d
+  toIntPos p (Nibble a b c d) =
+    let bin (Bit bt) = ifelse bt 1 0
+    in Just $ pow 2 (p + 3) * bin a
+            + pow 2 (p + 2) * bin b
+            + pow 2 (p + 1) * bin c
+            + pow 2 p * bin d
 
-increment :: ∀ n o . Nat n => Add D1 n o => n -> o
-increment _ = undefined
+  fromInt 0 = Just zero
+  fromInt i =
+    let bs = intToBitArray i
+    in if A.length bs < 5
+       then Just (Nibble (fromMaybe zero (bs !! 3))
+                         (fromMaybe zero (bs !! 2))
+                         (fromMaybe zero (bs !! 1))
+                         (fromMaybe zero (bs !! 0)))
+       else Nothing
+
+
+intToBitArray :: Int -> Array Bit
+intToBitArray 0 = []
+intToBitArray n | n `mod` 2 == 1 = A.snoc (intToBitArray (n `div` 2)) one
+                | otherwise = A.snoc (intToBitArray (n `div` 2)) zero
 
 data Byte = Byte Nibble Nibble
 
@@ -189,7 +200,7 @@ derive instance eqByte :: Eq Byte
 instance showByte :: Show Byte where
  show = toString
 
-instance bitsByte :: Binary D8 Byte where
+instance bitsByte :: Binary Byte where
   invert (Byte n1 n2) = Byte (invert n1) (invert n2)
 
   zero = Byte zero zero
@@ -212,8 +223,6 @@ instance bitsByte :: Binary D8 Byte where
     else Byte <$> fromString (Str.take 4 s)
               <*> fromString (Str.drop 4 s)
 
-  foldInt p (Byte h l) = toInt l + foldInt d4 h
-
   -- | Unsigned binary addition
   -- | Accepts a carry-over bit from the previous addition
   -- | Returns resulting byte with overflow bit
@@ -222,25 +231,24 @@ instance bitsByte :: Binary D8 Byte where
         (Overflow o'' h'') = add' o' h h'
     in Overflow o'' (Byte h'' l'')
 
+  fromInt 0 = Just zero
+  fromInt i =
+    let bs = intToBitArray i
+    in if A.length bs < 9
+       then Just (
+         Byte
+          (Nibble (fromMaybe zero (bs !! 7))
+                  (fromMaybe zero (bs !! 6))
+                  (fromMaybe zero (bs !! 5))
+                  (fromMaybe zero (bs !! 4)))
+          (Nibble (fromMaybe zero (bs !! 3))
+                  (fromMaybe zero (bs !! 2))
+                  (fromMaybe zero (bs !! 1))
+                  (fromMaybe zero (bs !! 0)))
+         )
+       else Nothing
 
-instance bitSizedVectorOfBytes :: (Pos s, Mul s D8 b, Pos b) => Binary b (Vec s Byte) where
-  invert = map invert
-  zero = replicate undefined zero
-
-  add' bit v1 v2 = unsafeCoerce res where
-    res = Overflow folded.over folded.vec
-    folded :: { over:: Bit, vec:: Vec s Byte }
-    folded = foldr f { "over": bit, "vec": empty } vectors
-    vectors :: Vec s (Tuple Byte Byte)
-    vectors = zip v1 v2
-    f :: ∀ l m. Nat l => Succ l m => Tuple Byte Byte -> { over:: Bit, vec:: Vec l Byte } -> { over:: Bit, vec:: Vec m Byte }
-    f (Tuple a b) { over: o, vec: v } =
-      let (Overflow o' ab) = add' o a b
-      in { over: o', vec: ab +> v }
-
-
-  leftShift _ = unsafeCoerce unit
-  rightShift _ = unsafeCoerce unit
-  toString = foldMap toString
-  fromString s = unsafeCoerce unit
-  foldInt _ _ = unsafeCoerce unit
+  toIntPos p (Byte h l) = do
+    l' <- toIntPos p l
+    h' <- toIntPos (p + 4) h
+    pure (l' + h')
