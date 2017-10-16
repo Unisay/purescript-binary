@@ -21,31 +21,36 @@ module Data.Binary
   , fromBinString
   , toIntPos
   , toInt
+  , fromBits
   , fromInt
   , intToBitArray
   ) where
 
-import Data.Array as A
-import Data.String as Str
 import Conditional (ifelse)
 import Control.Applicative (pure)
 import Control.Apply ((<$>), (<*>))
-import Control.Bind (bind, (>>=))
+import Control.Bind (bind, (>=>), (>>=))
 import Control.Monad (ifM)
 import Data.Array (foldMap, foldl, foldr)
+import Data.Array as A
 import Data.Boolean (otherwise)
 import Data.BooleanAlgebra (not, (&&))
 import Data.Eq (class Eq, (==))
 import Data.EuclideanRing (div, mod, (-))
+import Data.Foldable (foldM)
 import Data.Function (flip, ($), (>>>))
 import Data.Functor (class Functor, map)
 import Data.Int (pow)
-import Data.Maybe (Maybe(Nothing, Just), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Data.Ord (class Ord, compare, max, (<), (<=), (>=))
 import Data.Semigroup ((<>))
 import Data.Semiring ((*), (+))
+import Data.Semiring as SR
 import Data.Show (class Show, show)
+import Data.String as Str
+import Data.Traversable (traverse)
 import Data.Tuple (Tuple(Tuple))
+import Data.Tuple.Nested (get1)
 import Data.Unit (unit)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -62,12 +67,22 @@ class Binary a where
   leftShift :: Bit -> a -> Overflow a
   rightShift :: Bit -> a -> Overflow a
   toIntPos :: Int -> a -> Maybe Int
-  fromInt :: Int -> Maybe a
+  fromBits :: Array Bit -> Maybe a -- TODO: make total for Array Byte
+
   toBinString :: a -> String
   fromBinString :: String -> Maybe a
 
 toInt :: ∀ a. Binary a => a -> Maybe Int
 toInt = toIntPos 0
+
+fromInt :: ∀ a. Binary a => Int -> Maybe a
+fromInt = intToBitArray >>> fromBits
+
+-- | Converts a non-negative `Int` value into an `Array Bit`
+intToBitArray :: Int -> Array Bit
+intToBitArray 0 = []
+intToBitArray n | n `mod` 2 == 1 = A.snoc (intToBitArray (n `div` 2)) one
+                | otherwise = A.snoc (intToBitArray (n `div` 2)) zero
 
 instance binaryBit :: Binary Bit where
   invert (Bit b) = Bit (not b)
@@ -92,9 +107,9 @@ instance binaryBit :: Binary Bit where
   toIntPos p (Bit b) | p >= 0 && p <= 32 = Just (pow 2 p *  ifelse b 1 0)
   toIntPos _ _ = Nothing
 
-  fromInt 0 = Just zero
-  fromInt 1 = Just one
-  fromInt _ = Nothing
+  fromBits [Bit false] = Just zero
+  fromBits [Bit true]  = Just one
+  fromBits _ = Nothing
 
 data Overflow a = Overflow Bit a
 
@@ -168,11 +183,11 @@ instance bitsNibble :: Binary Nibble where
   toBinString (Nibble a b c d) =
     toBinString a <> toBinString b <> toBinString c <> toBinString d
 
-  fromBinString s | Str.length s < 5 =
-    Just $ Nibble (b 0) (b 1) (b 2) (b 3)
-      where b i = fromMaybe zero (Str.charAt i s >>= charToBit)
-  fromBinString _ = Nothing
+  fromBinString = Str.toCharArray >>> traverse charToBit >>> map (leftPadZero 4) >=> mk where
+    mk [a, b, c, d] = Just (Nibble a b c d)
+    mk _ = Nothing
 
+  -- TODO ----------------------- OVERFLOW
   toIntPos p (Nibble a b c d) =
     let bin (Bit bt) = ifelse bt 1 0
     in Just $ pow 2 (p + 3) * bin a
@@ -180,15 +195,9 @@ instance bitsNibble :: Binary Nibble where
             + pow 2 (p + 1) * bin c
             + pow 2 p * bin d
 
-  fromInt 0 = Just zero
-  fromInt i | [a, b, c, d] <- leftPadZero 4 (intToBitArray i) = Just (Nibble a b c d)
-  fromInt _ = Nothing
-
-
-intToBitArray :: Int -> Array Bit
-intToBitArray 0 = []
-intToBitArray n | n `mod` 2 == 1 = A.snoc (intToBitArray (n `div` 2)) one
-                | otherwise = A.snoc (intToBitArray (n `div` 2)) zero
+  fromBits = leftPadZero 4 >>> fromBits' where
+    fromBits' [a, b, c, d] = Just (Nibble a b c d)
+    fromBits' _ = Nothing
 
 data Byte = Byte Nibble Nibble
 
@@ -204,13 +213,11 @@ instance bitsByte :: Binary Byte where
 
   leftShift b (Byte h l) =
     let (Overflow o l') = leftShift b l
-        (Overflow o' h') = leftShift o h
-    in Overflow o' (Byte h' l')
+    in flip Byte l' <$> leftShift o h
 
   rightShift b (Byte h l) =
     let (Overflow o h') = rightShift b h
-        (Overflow o' l') = rightShift o l
-    in Overflow o' (Byte h' l')
+    in Byte h' <$> rightShift o l
 
   toBinString (Byte n1 n2) = show n1 <> show n2
 
@@ -225,18 +232,13 @@ instance bitsByte :: Binary Byte where
   -- | Returns resulting byte with overflow bit
   add' o (Byte h l) (Byte h' l') =
     let (Overflow o' l'') = add' o l l'
-        (Overflow o'' h'') = add' o' h h'
-    in Overflow o'' (Byte h'' l'')
+    in flip Byte l'' <$> add' o' h h'
 
-  fromInt 0 = Just zero
-  fromInt i | [a, b, c, d, e, f, g, h] <- leftPadZero 8 (intToBitArray i) =
-    Just (Byte (Nibble a b c d) (Nibble e f g h))
-  fromInt _ = Nothing
+  fromBits = leftPadZero 8 >>> fromBits' where
+    fromBits' [a, b, c, d, e, f, g, h] = Just (Byte (Nibble a b c d) (Nibble e f g h))
+    fromBits' _ = Nothing
 
-  toIntPos p (Byte h l) = do
-    l' <- toIntPos p l
-    h' <- toIntPos (p + 4) h
-    pure (l' + h')
+  toIntPos p (Byte h l) = SR.add <$> toIntPos p l <*> toIntPos (p + 4) h
 
 notImplemented :: ∀ a . a
 notImplemented = unsafeCoerce unit
@@ -255,12 +257,10 @@ instance binaryArrayByte :: Binary (Array Byte) where
     pairs = A.zip (leftPadZero len as) (leftPadZero len bs)
     len = max (A.length as) (A.length bs)
 
-  leftShift bit = foldr f acc where
-    acc = Overflow bit []
+  leftShift bit = foldr f (Overflow bit []) where
     f a (Overflow o t) = flip A.cons t <$> leftShift o a
 
-  rightShift bit = foldl f acc where
-    acc = Overflow bit []
+  rightShift bit = foldl f (Overflow bit []) where
     f (Overflow o t) a = A.snoc t <$> rightShift o a
 
   toBinString = foldMap toBinString
@@ -268,8 +268,11 @@ instance binaryArrayByte :: Binary (Array Byte) where
   fromBinString s | Str.length s < 9 = A.singleton <$> fromBinString (Str.take 8 s)
   fromBinString s = A.cons <$> fromBinString (Str.take 8 s) <*> fromBinString (Str.drop 8 s)
 
-  -- toIntPos :: Int -> a -> Maybe Int
-  toIntPos = notImplemented
+  toIntPos p bs = get1 <$> foldM f (Tuple 0 0) bs where
+    f (Tuple r i) b = SR.add r >>> Tuple (i + 8) <$> toIntPos i b
 
-  -- fromInt :: Int -> Maybe a
-  fromInt = notImplemented
+  fromBits bits = parseBytes pbits where
+    nbytes = A.length bits `div` 8 + 1
+    pbits = leftPadZero (nbytes * 8) bits
+    parseBytes [] = Just []
+    parseBytes xs = A.cons <$> fromBits (A.take 8 xs) <*> parseBytes (A.drop 8 xs)
