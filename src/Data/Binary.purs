@@ -29,7 +29,9 @@ module Data.Binary
   , toBits
   , fromBits
   , tryFromBits
+  , numBits
   , intToBitArray
+  , extendOverflow
   ) where
 
 import Data.Array as A
@@ -40,7 +42,7 @@ import Control.Bind ((>=>))
 import Data.Array (foldMap, foldl, foldr)
 import Data.Boolean (otherwise)
 import Data.BooleanAlgebra (class BooleanAlgebra, not)
-import Data.Bounded (class Bounded)
+import Data.Bounded (class Bounded, bottom, top)
 import Data.Eq (class Eq, (==))
 import Data.EuclideanRing (div, mod)
 import Data.Function (flip, ($), (>>>))
@@ -54,6 +56,7 @@ import Data.String (fromCharArray, toCharArray)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(Tuple))
 import Data.Tuple.Nested (get1)
+import Type.Proxy (Proxy(..))
 
 
 newtype Bit = Bit Boolean
@@ -78,6 +81,7 @@ tryFromBinString :: ∀ a. Fixed a => String -> Maybe a
 tryFromBinString = toCharArray >>> traverse charToBit >=> tryFromBits
 
 class Binary a <= Fixed a where
+  numBits :: Proxy a -> Int
   tryFromBits :: Array Bit -> Maybe a
   toInt :: a -> Int
 
@@ -88,6 +92,7 @@ tryFromInt = intToBitArray >>> tryFromBits
 class Binary a <= Elastic a where
   fromBits :: Array Bit -> a
   tryToInt :: a -> Maybe Int
+  extendOverflow :: Overflow a -> a
 
 tryFromBinStringElastic :: ∀ a. Elastic a => String -> Maybe a
 tryFromBinStringElastic = toCharArray >>> traverse charToBit >>> map fromBits
@@ -125,6 +130,8 @@ instance binaryBit :: Binary Bit where
   rightShift b a = Overflow a b
 
 instance fixedBit :: Fixed Bit where
+  numBits _ = 1
+
   tryFromBits [b] = Just b
   tryFromBits _ = Nothing
 
@@ -180,6 +187,10 @@ instance ordNibble :: Ord Nibble where
 instance showNibble :: Show Nibble where
   show = toBinString
 
+instance boundedNibble :: Bounded Nibble where
+  top = Nibble top top top top
+  bottom = Nibble bottom bottom bottom bottom
+
 instance bitsNibble :: Binary Nibble where
   invert (Nibble a b c d) = Nibble (invert a) (invert b) (invert c) (invert d)
 
@@ -201,6 +212,8 @@ instance bitsNibble :: Binary Nibble where
   rightShift z (Nibble a b c d) = Overflow d (Nibble z a b c)
 
 instance fixedNibble :: Fixed Nibble where
+  numBits _ = 4
+
   tryFromBits = leftPadZero 4 >>> tryFromBits' where
     tryFromBits' [a, b, c, d] = Just (Nibble a b c d)
     tryFromBits' _ = Nothing
@@ -215,6 +228,13 @@ derive instance eqByte :: Eq Byte
 
 instance showByte :: Show Byte where
  show = toBinString
+
+instance ordByte :: Ord Byte where
+  compare l r = compare (toBits l) (toBits r)
+
+instance boundedByte :: Bounded Byte where
+  top = Byte top top
+  bottom = Byte bottom bottom
 
 instance bitsByte :: Binary Byte where
   invert (Byte n1 n2) = Byte (invert n1) (invert n2)
@@ -238,6 +258,8 @@ instance bitsByte :: Binary Byte where
     in flip Byte l'' <$> add' o' h h'
 
 instance fixedByte :: Fixed Byte where
+  numBits _ = 8
+
   tryFromBits = leftPadZero 8 >>> tryFromBits' where
     tryFromBits' [a, b, c, d, e, f, g, h] = Just (Byte (Nibble a b c d) (Nibble e f g h))
     tryFromBits' _ = Nothing
@@ -245,7 +267,7 @@ instance fixedByte :: Fixed Byte where
   toInt (Byte h l) = 16 * toInt h + toInt l
 
 
-instance binaryArrayByte :: Binary (Array Byte) where
+instance binaryArrayBinary :: Binary b => Binary (Array b) where
   invert = map invert
   zero = pure zero
   toBits = foldMap toBits
@@ -262,15 +284,26 @@ instance binaryArrayByte :: Binary (Array Byte) where
   rightShift bit = foldl f (Overflow bit []) where
     f (Overflow o t) a = A.snoc t <$> rightShift o a
 
-instance elasticArrayByte :: Elastic (Array Byte) where
-  fromBits bits = fromMaybe [] (parseBytes pbits) where
-    nbytes = A.length bits `div` 8
-    pbits = leftPadZero (nbytes * 8) bits
-    parseBytes [] = Just []
-    parseBytes xs = A.cons <$> tryFromBits (A.take 8 xs) <*> parseBytes (A.drop 8 xs)
+instance elasticArrayByte :: Fixed b => Elastic (Array b) where
 
-  tryToInt bytes = tryToInt' (A.length bytes) bytes where
-    tryToInt' l _ | l > 4 = Nothing
-    tryToInt' 4 [(Byte (Nibble (Bit true) _ _ _) _), _] = Nothing -- not using 2's complement
-    tryToInt' l bs = Just $ get1 $ foldr f (Tuple 0 1) (toBits bs)
-    f b (Tuple r p) = Tuple (p * 2) (p * toInt b + r)
+  -- | Consider a more optimal implementation for the `Array Bit` (id)
+  fromBits bits = fromMaybe [] (fromBits' paddedBits) where
+    bitsPerChunk = numBits (Proxy :: Proxy b)
+    totalBits = A.length bits
+    numChunks = if (totalBits `mod` bitsPerChunk == 0)
+                then totalBits `div` bitsPerChunk
+                else totalBits `div` bitsPerChunk + 1
+    paddedBits = leftPadZero (numChunks * bitsPerChunk) bits
+    fromBits' [] = Just []
+    fromBits' xs = A.cons <$> tryFromBits (A.take bitsPerChunk xs)
+                          <*> fromBits' (A.drop bitsPerChunk xs)
+
+  tryToInt binary =
+    bitsToInt (A.length bits) bits where
+      bits = toBits binary
+      bitsToInt l _ | l > 31 = Nothing
+      bitsToInt 0 _ = Just 0
+      bitsToInt _ bts = Just $ get1 $ foldr f (Tuple 0 1) bts
+      f b (Tuple r p) = Tuple (p * 2) (p * toInt b + r)
+
+  extendOverflow (Overflow bit bin) = fromBits $ A.cons bit $ toBits bin

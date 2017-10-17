@@ -7,5 +7,4 @@ Binary encoding for PureScript
 - [x] Data.Binary.Bit
 - [x] Data.Binary.Nibble
 - [x] Data.Binary.Byte
-- [x] Array Byte
-- [ ] Array Bit
+- [x] ∀ a. Fixed a => Array a
