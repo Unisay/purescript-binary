@@ -1,7 +1,7 @@
 module Data.Byte.Spec (spec) where
 
 import Control.Monad.Eff.Random (RANDOM)
-import Data.Binary (Overflow(..), Bit(..), Nibble(..), Byte(..), add, fromBinString, toBinString, leftShift, rightShift, toInt)
+import Data.Binary (Bit(..), Byte(..), Nibble(..), Overflow(..), add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
 import Data.Binary.Arbitraty (ArbBit(..), ArbByte(..))
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
@@ -9,13 +9,14 @@ import Data.String (length, toCharArray)
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
-import Data.Semiring as S
 import Prelude hiding (add)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Byte" do
   test "toBinString has length 8" $ quickCheck propToStringLength
   test "toBinString contains only 0 and 1" $ quickCheck propHasBinDigits
+  test "toBits >>> tryFromBits" $ quickCheck propBitsRoundtrip
+  test "toInt >>> tryFromInt" $ quickCheck propIntRoundtrip
   test "toBinString >>> fromBinString" $ quickCheck propStringRoundtrip
   test "addition works like Int" $ quickCheck propAddition
   test "left shift" $ quickCheck propLeftShift
@@ -29,17 +30,21 @@ propHasBinDigits (ArbByte n) = (all (\d -> d == '1' || d == '0') $ toCharArray (
   <?> "String representation of Byte contains not only digits 1 and 0"
 
 propStringRoundtrip :: ArbByte -> Result
-propStringRoundtrip (ArbByte n) = fromBinString (toBinString n) === Just n
+propStringRoundtrip (ArbByte n) = tryFromBinString (toBinString n) === Just n
+
+propBitsRoundtrip :: ArbByte -> Result
+propBitsRoundtrip (ArbByte n) = tryFromBits (toBits n) === Just n
+
+propIntRoundtrip :: ArbByte -> Result
+propIntRoundtrip (ArbByte n) = tryFromInt (toInt n) === Just n
 
 propAddition :: ArbByte -> ArbByte -> Result
 propAddition (ArbByte a) (ArbByte b) =
   case add a b of
     (Overflow (Bit true) _) ->
-       let c = S.add <$> toInt a <*> toInt b
-       in c > Just 15 <?> ("Unexpected overflow bit (" <> show a <> "" <> show b <> ")")
+      toInt a + toInt b > 15 <?> ("Unexpected overflow bit (" <> show a <> "" <> show b <> ")")
     (Overflow (Bit false) r) ->
-      let ab = S.add <$> toInt a <*> toInt b
-          res = ab == toInt r
+      let res = toInt a + toInt b == toInt r
       in res <?> "(toInt a + toInt b) /= toInt (add a b)"
               <> ", where a = " <> show a <> " (" <> show (toInt a) <> ")"
               <> ", b = " <> show b <> " (" <> show (toInt b) <> ")"

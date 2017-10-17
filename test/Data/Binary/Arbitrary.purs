@@ -2,8 +2,9 @@ module Data.Binary.Arbitraty where
 
 import Prelude
 import Data.Binary (Bit(..), Byte(..), Nibble(..))
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, unwrap)
 import Test.QuickCheck (class Arbitrary, arbitrary)
+import Test.QuickCheck.Gen (Gen, sized, vectorOf)
 
 newtype ArbBit = ArbBit Bit
 derive newtype instance eqArbBit :: Eq ArbBit
@@ -34,3 +35,13 @@ instance arbitraryByte :: Arbitrary ArbByte where
     (ArbNibble n1) <- arbitrary
     (ArbNibble n2) <- arbitrary
     pure $ ArbByte $ Byte n1 n2
+
+newtype ArbArrayByte = ArbArrayByte (Array Byte)
+derive newtype instance eqArbArrayByte :: Eq ArbArrayByte
+derive newtype instance showArbArrayByte :: Show ArbArrayByte
+instance arbitraryArrayByte :: Arbitrary ArbArrayByte where
+  arbitrary = ArbArrayByte <$> sized genBytes where
+    genBytes :: Int -> Gen (Array Byte)
+    genBytes n = vectorOf n genByte
+    genByte :: Gen Byte
+    genByte = map unwrap (arbitrary :: Gen ArbByte)

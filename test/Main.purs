@@ -9,6 +9,7 @@ import Test.Unit.Main (runTest)
 import Prelude hiding (add)
 import Data.Byte.Spec as Byte
 import Data.Nibble.Spec as Nibble
+import Data.ArrayByte.Spec as ArrayByte
 
 main :: ∀ e. Eff ( console     :: CONSOLE
                  , testOutput  :: TESTOUTPUT
@@ -19,3 +20,4 @@ main :: ∀ e. Eff ( console     :: CONSOLE
 main = runTest do
   Nibble.spec
   Byte.spec
+  ArrayByte.spec
