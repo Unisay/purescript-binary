@@ -34,14 +34,14 @@ module Data.Binary
   , extendOverflow
   ) where
 
-import Data.Array as A
 import Conditional (ifelse)
 import Control.Applicative (pure)
 import Control.Apply ((<$>), (<*>))
 import Control.Bind ((>=>))
 import Data.Array (foldMap, foldl, foldr)
+import Data.Array as A
 import Data.Boolean (otherwise)
-import Data.BooleanAlgebra (class BooleanAlgebra, not)
+import Data.BooleanAlgebra (class BooleanAlgebra, class HeytingAlgebra, not)
 import Data.Bounded (class Bounded, bottom, top)
 import Data.Eq (class Eq, (==))
 import Data.EuclideanRing (div, mod)
@@ -62,6 +62,7 @@ import Type.Proxy (Proxy(..))
 newtype Bit = Bit Boolean
 derive newtype instance eqBit :: Eq Bit
 derive newtype instance ordBit :: Ord Bit
+derive newtype instance heytingAlgebraBit :: HeytingAlgebra Bit
 derive newtype instance booleanAlgebraBit :: BooleanAlgebra Bit
 derive newtype instance boundedBit :: Bounded Bit
 instance showBit :: Show Bit where show = toBinString
@@ -304,6 +305,6 @@ instance elasticArrayByte :: Fixed b => Elastic (Array b) where
       bitsToInt l _ | l > 31 = Nothing
       bitsToInt 0 _ = Just 0
       bitsToInt _ bts = Just $ get1 $ foldr f (Tuple 0 1) bts
-      f b (Tuple r p) = Tuple (p * 2) (p * toInt b + r)
+      f b (Tuple r p) = Tuple (p * toInt b + r) (p * 2)
 
   extendOverflow (Overflow bit bin) = fromBits $ A.cons bit $ toBits bin
