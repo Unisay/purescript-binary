@@ -15,6 +15,7 @@ module Data.Binary
   , unsafeAdd
   , zero
   , one
+  , leftPadZero
   , leftShift
   , unsafeLeftShift
   , rightShift
