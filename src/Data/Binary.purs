@@ -2,6 +2,7 @@ module Data.Binary
   ( class Binary
   , class Elastic
   , class Fixed
+  , class FitsInt
   , Bit(..)
   , Nibble(..)
   , Byte(..)
@@ -81,18 +82,27 @@ toBinString = toBits >>> map bitToChar >>> fromCharArray
 tryFromBinString :: ∀ a. Fixed a => String -> Maybe a
 tryFromBinString = toCharArray >>> traverse charToBit >=> tryFromBits
 
+class Binary a <= FitsInt a where
+  toInt :: a -> Int
+
 class Binary a <= Fixed a where
   numBits :: Proxy a -> Int
   tryFromBits :: Array Bit -> Maybe a
-  toInt :: a -> Int
+
+tryToInt :: ∀ a. Binary a => a -> Maybe Int
+tryToInt binary =
+  bitsToInt (A.length bits) bits where
+    bits = toBits binary
+    bitsToInt l _ | l > 31 = Nothing
+    bitsToInt 0 _ = Just 0
+    bitsToInt _ bts = Just $ get1 $ foldr f (Tuple 0 1) bts
+    f b (Tuple r p) = Tuple (p * toInt b + r) (p * 2)
 
 tryFromInt :: ∀ a. Fixed a => Int -> Maybe a
 tryFromInt = intToBitArray >>> tryFromBits
 
-
 class Binary a <= Elastic a where
   fromBits :: Array Bit -> a
-  tryToInt :: a -> Maybe Int
   extendOverflow :: Overflow a -> a
 
 tryFromBinStringElastic :: ∀ a. Elastic a => String -> Maybe a
@@ -136,6 +146,7 @@ instance fixedBit :: Fixed Bit where
   tryFromBits [b] = Just b
   tryFromBits _ = Nothing
 
+instance fitsIntBit :: FitsInt Bit where
   toInt (Bit b) = ifelse b 1 0
 
 
@@ -219,6 +230,7 @@ instance fixedNibble :: Fixed Nibble where
     tryFromBits' [a, b, c, d] = Just (Nibble a b c d)
     tryFromBits' _ = Nothing
 
+instance fitsIntNibble :: FitsInt Nibble where
   toInt (Nibble a b c d) = 8 * bin a + 4 * bin b + 2 * bin c + bin d where
     bin (Bit bt) = ifelse bt 1 0
 
@@ -265,6 +277,7 @@ instance fixedByte :: Fixed Byte where
     tryFromBits' [a, b, c, d, e, f, g, h] = Just (Byte (Nibble a b c d) (Nibble e f g h))
     tryFromBits' _ = Nothing
 
+instance fitsIntByte :: FitsInt Byte where
   toInt (Byte h l) = 16 * toInt h + toInt l
 
 
@@ -298,13 +311,5 @@ instance elasticArrayByte :: Fixed b => Elastic (Array b) where
     fromBits' [] = Just []
     fromBits' xs = A.cons <$> tryFromBits (A.take bitsPerChunk xs)
                           <*> fromBits' (A.drop bitsPerChunk xs)
-
-  tryToInt binary =
-    bitsToInt (A.length bits) bits where
-      bits = toBits binary
-      bitsToInt l _ | l > 31 = Nothing
-      bitsToInt 0 _ = Just 0
-      bitsToInt _ bts = Just $ get1 $ foldr f (Tuple 0 1) bts
-      f b (Tuple r p) = Tuple (p * toInt b + r) (p * 2)
 
   extendOverflow (Overflow bit bin) = fromBits $ A.cons bit $ toBits bin
