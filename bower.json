@@ -6,6 +6,11 @@
     "bower_components",
     "output"
   ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/Unisay/purescript-binary.git"             
+  },
   "dependencies": {
     "purescript-nonempty": "^4.0.0",
     "purescript-partial": "^1.2.1",
