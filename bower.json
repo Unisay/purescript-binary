@@ -9,7 +9,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git://github.com/Unisay/purescript-binary.git"             
+    "url": "git://github.com/Unisay/purescript-binary.git"
   },
   "dependencies": {
     "purescript-nonempty": "^4.0.0",
@@ -20,7 +20,9 @@
     "purescript-maybe": "^3.0.0",
     "purescript-conditional": "^2.0.0",
     "purescript-strings": "^3.3.1",
-    "purescript-proxy": "^2.1.0"
+    "purescript-proxy": "^2.1.0",
+    "purescript-unfoldable": "^3.0.0",
+    "purescript-foldable-traversable": "^3.6.1"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0",

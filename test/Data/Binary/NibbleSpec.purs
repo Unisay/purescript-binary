@@ -1,4 +1,4 @@
-module Data.Nibble.Spec
+module Data.Binary.Nibble.Spec
   ( spec
   ) where
 

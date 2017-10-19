@@ -1,4 +1,4 @@
-module Data.Byte.Spec (spec) where
+module Data.Binary.Byte.Spec (spec) where
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Binary (Bit(..), Byte(..), Nibble(..), Overflow(..), add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
