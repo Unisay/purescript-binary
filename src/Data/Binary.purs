@@ -45,12 +45,12 @@ import Data.Array as A
 import Data.Boolean (otherwise)
 import Data.BooleanAlgebra (class BooleanAlgebra, class HeytingAlgebra, not, (&&))
 import Data.Bounded (class Bounded, bottom, top)
-import Data.Eq (class Eq, (==))
+import Data.Eq (class Eq, eq, (==))
 import Data.EuclideanRing (class Semiring, div, mod, sub, (-))
-import Data.Foldable (class Foldable, foldMap, foldl, foldr, length)
-import Data.Function (flip, id, (#), ($), (>>>))
+import Data.Foldable (class Foldable, foldMap, foldl, foldr, length, sum)
+import Data.Function (flip, id, (#), ($), (<<<), (>>>))
 import Data.Functor (class Functor, map)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.NonEmpty (NonEmpty(..), fromNonEmpty, (:|))
 import Data.Ord (class Ord, compare, max, (<), (>))
@@ -76,40 +76,6 @@ derive newtype instance booleanAlgebraBit :: BooleanAlgebra Bit
 derive newtype instance boundedBit :: Bounded Bit
 instance showBit :: Show Bit where show = toBinString
 
-newtype Bits = Bits (NonEmpty Array Bit)
-derive instance newtypeBits :: Newtype Bits _
-derive newtype instance eqBits :: Eq Bits
-derive newtype instance ordBits :: Ord Bits
-instance semigroupBits :: Semigroup Bits where
-  append (Bits (NonEmpty a as)) (Bits nbs) = Bits (a :| as :| bitsArray nbs)
-
-instance binaryBits :: Binary Bits where
-  invert (Bits bs) = Bits (map invert bs)
-  add' bit (Bits (NonEmpty a as)) (Bits (NonEmpty b bs)) =
-    let (Overflow x xs) = (add' bit as bs)
-        (Overflow y z) = add' x a b
-    in Bits (y :| z :| xs)
-  leftShift bit (Bits (NonEmpty a as)) =
-    let (Overflow x xs) = leftShift bit as
-    in (Overflow a (Bits (x :| xs)))
-  rightShift bit (Bits (NonEmpty a as)) =
-    let (Overflow x xs) = rightShift a as
-        (Overflow y zs) = rightShift bit xs
-    in (Overflow x (Bits y :| zs))
-
-  toBits = id
-
-bitsArray :: Bits -> Array Bit
-bitsArray (Bits (NonEmpty b bs)) = b : bs
-
-bitsLength :: Bits -> Int
-bitsLength = unwrap >>> length
-
-zeroWiden :: Int -> Bits -> Bits
-zeroWiden w bits =
-  if d < 1 then bits else (zero :| replicate (sub d 1) zero) <> bits
-    where d = sub w (bitsLength bits)
-
 class Semiring a <= Binary a where
   invert :: a -> a
   add' :: Bit -> a -> a -> Overflow Bit a
@@ -117,28 +83,28 @@ class Semiring a <= Binary a where
   rightShift :: Bit -> a -> Overflow Bit a
   toBits :: a -> Bits
 
-multiply :: ∀ a. Binary a => a -> a -> Overflow Bit a
-multiply md mr = ?x where
-  fPartialProducts = unwrap <$> catMaybes (map A.last partialProducts)
-  partialProducts :: Array (Array Bit)
-  partialProducts = unfoldr f s
-  s :: Tuple (Array Bit) Bits
-  s = Tuple (bitsArray $ toBits md) (toBits mr)
+multiply :: ∀ a. Binary a => a -> a -> Overflow (Maybe Bits) a
+multiply md mr = foldl g (Overflow Nothing) partialProducts where
+  g :: Overflow (Maybe Bits) a -> Bits -> Overflow (Maybe Bits) a
+  g = unsafeCoerce unit
+  partialProducts :: Array Bits
+  partialProducts = A.filter lastBitIs1 (unfoldr f initialState)
+  lastBitIs1 :: Bits -> Boolean
+  lastBitIs1 (Bits (NonEmpty _ bits)) = maybe false (eq one) (A.last bits)
+  initialState :: Tuple (Array Bit) Bits
+  initialState = Tuple (bitsArray $ toBits md) (toBits mr)
   f :: Tuple (Array Bit) Bits -> Maybe (Tuple Bits (Tuple (Array Bit) Bits))
   f (Tuple [] mdr) = Nothing
-  f (Tuple mdb mdr) =
-    let shrinked :: Maybe (Array Bit)
-        shrinked = A.tail mdb
-        shifted :: Array Bit
-        shifted = A.snoc (mdr) zero
-    in shrinked <#> \shr -> (Tuple shifted (Tuple shr shifted))
+  f (Tuple mdb mdr) = A.tail mdb <#> \shr -> (Tuple shifted (Tuple shr shifted))
+     where shifted = mdr <> zero
 
 
 toBinString :: ∀ a. Binary a => a -> String
 toBinString = toBits >>> map bitToChar >>> fromCharArray
 
 tryFromBinString :: ∀ a. Fixed a => String -> Maybe a
-tryFromBinString = toCharArray >>> traverse charToBit >=> tryFromBits
+tryFromBinString =
+  toCharArray >>> traverse charToBit >=> makeBits >=> tryFromBits
 
 class Binary a <= FitsInt a where
   toInt :: a -> Int
@@ -159,11 +125,12 @@ tryFromInt :: ∀ a. Fixed a => Int -> Maybe a
 tryFromInt = intToBits >>> tryFromBits
 
 class Binary a <= Elastic a where
-  fromBits :: Array Bit -> a
+  fromBits :: Bits -> a
   extendOverflow :: Overflow Bit a -> a
 
 tryFromBinStringElastic :: ∀ a. Elastic a => String -> Maybe a
-tryFromBinStringElastic = toCharArray >>> traverse charToBit >>> map fromBits
+tryFromBinStringElastic =
+  toCharArray >>> traverse charToBit >=> makeBits >>> map fromBits
 
 fromInt :: ∀ a. Elastic a => Int -> a
 fromInt = intToBits >>> fromBits
@@ -209,6 +176,55 @@ instance fixedBit :: Fixed Bit where
 
 instance fitsIntBit :: FitsInt Bit where
   toInt (Bit b) = ifelse b 1 0
+
+
+newtype Bits = Bits (NonEmpty Array Bit)
+derive instance newtypeBits :: Newtype Bits _
+derive newtype instance eqBits :: Eq Bits
+derive newtype instance ordBits :: Ord Bits
+instance semigroupBits :: Semigroup Bits where
+  append (Bits (NonEmpty a as)) (Bits nbs) = Bits (a :| as :| bitsArray nbs)
+
+instance semiringBits :: Semiring Bits where
+  add a b = discardOverflow $ add' a b
+  zero = Bits $ zero :| []
+  mul a b = ?mul
+  one = Bits $ one :| []
+
+instance binaryBits :: Binary Bits where
+  invert (Bits bs) = Bits (map invert bs)
+  add' bit (Bits (NonEmpty a as)) (Bits (NonEmpty b bs)) =
+    let (Overflow x xs) = (add' bit as bs)
+        (Overflow y z) = add' x a b
+    in Bits (y :| z :| xs)
+  leftShift bit (Bits (NonEmpty a as)) =
+    let (Overflow x xs) = leftShift bit as
+    in (Overflow a (Bits (x :| xs)))
+  rightShift bit (Bits (NonEmpty a as)) =
+    let (Overflow x xs) = rightShift a as
+        (Overflow y zs) = rightShift bit xs
+    in (Overflow x (Bits y :| zs))
+
+  toBits = id
+
+makeBits :: Array Bit -> Maybe Bits
+makeBits [] = Nothing
+makeBits bs = Bits <$> (NonEmpty <$> A.head bs <*> A.tail bs)
+
+bitsArray :: Bits -> Array Bit
+bitsArray (Bits (NonEmpty b bs)) = b : bs
+
+bitsLength :: Bits -> Int
+bitsLength = unwrap >>> length
+
+zeroWiden :: Int -> Bits -> Bits
+zeroWiden w bits =
+  if d < 1 then bits else Bits (zero :| replicate (sub d 1) zero) <> bits
+    where d = sub w (bitsLength bits)
+
+instance elasticBits :: Elastic Bits where
+  fromBits = id
+  extendOverflow (Overflow bit (Bits (NonEmpty b bs))) = Bits $ bit :| (b : bs)
 
 
 data Overflow b a = Overflow b a
@@ -292,7 +308,7 @@ instance fixedNibble :: Fixed Nibble where
   numBits _ = 4
 
   tryFromBits = zeroWiden 4 >>> tryFromBits' where
-    tryFromBits' [a, b, c, d] = Just (Nibble a b c d)
+    tryFromBits' (Bits (NonEmpty a [b, c, d])) = Just (Nibble a b c d)
     tryFromBits' _ = Nothing
 
 instance fitsIntNibble :: FitsInt Nibble where
@@ -343,7 +359,8 @@ instance binaryByte :: Binary Byte where
 instance fixedByte :: Fixed Byte where
   numBits _ = 8
   tryFromBits = zeroWiden 8 >>> tryFromBits' where
-    tryFromBits' [a, b, c, d, e, f, g, h] = Just (Byte (Nibble a b c d) (Nibble e f g h))
+    tryFromBits' (Bits (NonEmpty a [b, c, d, e, f, g, h])) =
+      Just (Byte (Nibble a b c d) (Nibble e f g h))
     tryFromBits' _ = Nothing
 
 instance fitsIntByte :: FitsInt Byte where
