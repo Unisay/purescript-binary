@@ -16,6 +16,7 @@ import Prelude
 import Control.Plus (empty)
 import Data.Array ((:))
 import Data.Array as A
+import Data.Binary (class Binary, class Elastic, Overflow(..), _0, _1, add', invert, leftShift)
 import Data.Bit (Bit(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype)
@@ -29,6 +30,35 @@ instance showBits :: Show Bits where
   show = bitsArray >>> show
 instance semigroupBits :: Semigroup Bits where
   append (Bits (NonEmpty a as)) bits = Bits (a :| as <> bitsArray bits)
+
+instance binaryBits :: Binary Bits where
+  _0 = Bits $ _0 :| []
+  _1 = Bits $ _1 :| []
+  invert (Bits bs) = Bits (map invert bs)
+  add' bit (Bits (NonEmpty h t)) (Bits (NonEmpty h' t')) =
+    let (Overflow to tails) = add' bit t t'
+        (Overflow ho heads) = add' to h h'
+    in Overflow ho (Bits (heads :| tails))
+  leftShift bit (Bits (NonEmpty a as)) =
+    let (Overflow x xs) = leftShift bit as
+    in Overflow a (Bits (x :| xs))
+  rightShift bit bits =
+    reverseBits <$> leftShift bit (reverseBits bits)
+  toBits = bitsArray
+
+instance elasticBits :: Elastic Bits where
+  fromBits bits = fromBits' (A.uncons bits) where
+    fromBits' Nothing = _0
+    fromBits' (Just {head: h, tail: t}) = Bits (h :| t)
+
+  extendOverflow (Overflow bit (Bits (NonEmpty b bs))) = Bits $ bit :| (b : bs)
+
+-- instance semiringBits :: Semiring Bits where
+--   zero = _0
+--   one = _1
+--   add bits bits' = foldr ?X where
+--     zipped = zip (bitsArray bits) (bitsArray bits)
+
 
 
 makeBits :: Array Bit -> Maybe Bits
@@ -67,7 +97,7 @@ zeroWiden w bits =
 singleBit :: Boolean -> Bits
 singleBit b = Bits (Bit b :| [])
 
--- | Converts a non-negative `Int` value into an `Array Bit`
+-- | Converts a non-negative `Int` value into an `Bits`
 intToBits :: Int -> Bits
 intToBits = intToBits' >>> stripLeadingZeros where
   intToBits' 0 = Bits (Bit false :| empty)
