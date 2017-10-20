@@ -9,7 +9,7 @@ import Test.Unit.Main (runTest)
 import Prelude hiding (add)
 import Data.Binary.Byte.Spec as Byte
 import Data.Binary.Nibble.Spec as Nibble
-import Data.Binary.Bins.Spec as Bins
+import Data.Binary.Bits.Spec as Bits
 
 main :: ∀ e. Eff ( console     :: CONSOLE
                  , testOutput  :: TESTOUTPUT
@@ -20,4 +20,4 @@ main :: ∀ e. Eff ( console     :: CONSOLE
 main = runTest do
   Nibble.spec
   Byte.spec
-  Bins.spec
+  Bits.spec

@@ -1,16 +1,37 @@
-module Data.Binary.Arbitraty where
+module Data.Binary.Arbitrary where
 
 import Prelude
-import Data.Binary (Bit(..), Byte(..), Nibble(..), Bins(..))
+
+import Data.Binary (Byte(..), Nibble(..))
+import Data.Bit (Bit(..))
+import Data.Bits (Bits(..))
 import Data.Newtype (class Newtype, unwrap)
+import Data.NonEmpty (NonEmpty(..))
 import Test.QuickCheck (class Arbitrary, arbitrary)
-import Test.QuickCheck.Gen (Gen, sized, vectorOf)
+import Test.QuickCheck.Gen (Gen, sized, suchThat, vectorOf)
+
+newtype ArbNonNegativeInt = ArbNonNegativeInt Int
+
+instance arbitraryNonNegativeInt :: Arbitrary ArbNonNegativeInt where
+  arbitrary = ArbNonNegativeInt <$> suchThat arbitrary (_ >= 0)
 
 newtype ArbBit = ArbBit Bit
+derive instance newtypeArbBit :: Newtype ArbBit _
 derive newtype instance eqArbBit :: Eq ArbBit
 derive newtype instance showArbBit :: Show ArbBit
 instance arbitraryBit :: Arbitrary ArbBit where
   arbitrary = ArbBit <<< Bit <$> arbitrary
+
+newtype ArbBits = ArbBits Bits
+derive newtype instance eqArbBits :: Eq ArbBits
+derive newtype instance showArbBits :: Show ArbBits
+
+instance arbitraryBits :: Arbitrary ArbBits where
+  arbitrary =
+    ArbBits <$> Bits <$> (NonEmpty <$> arbBit <*> arbBits) where
+      arbBits = sized \s -> vectorOf s arbBit
+      arbBit = unwrap <$> (arbitrary :: Gen ArbBit)
+
 
 newtype ArbNibble = ArbNibble Nibble
 derive instance newtypeArbNibble :: Newtype ArbNibble _
@@ -35,13 +56,3 @@ instance arbitraryByte :: Arbitrary ArbByte where
     (ArbNibble n1) <- arbitrary
     (ArbNibble n2) <- arbitrary
     pure $ ArbByte $ Byte n1 n2
-
-newtype ArbBinsByte = ArbBinsByte (Bins Byte)
-derive newtype instance eqArbBinsByte :: Eq ArbBinsByte
-derive newtype instance showArbBinsByte :: Show ArbBinsByte
-instance arbitraryBinsByte :: Arbitrary ArbBinsByte where
-  arbitrary = ArbBinsByte <$> Bins <$> sized genBytes where
-    genBytes :: Int -> Gen (Array Byte)
-    genBytes n = vectorOf n genByte
-    genByte :: Gen Byte
-    genByte = map unwrap (arbitrary :: Gen ArbByte)

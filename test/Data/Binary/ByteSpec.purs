@@ -1,15 +1,16 @@
 module Data.Binary.Byte.Spec (spec) where
 
 import Control.Monad.Eff.Random (RANDOM)
-import Data.Binary (Bit(..), Byte(..), Nibble(..), Overflow(..), add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
-import Data.Binary.Arbitraty (ArbBit(..), ArbByte(..))
+import Data.Binary (Byte(..), Nibble(..), Overflow(..), add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
+import Data.Binary.Arbitrary (ArbBit(..), ArbByte(..))
+import Data.Bit (Bit(..))
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
 import Data.String (length, toCharArray)
+import Prelude hiding (add)
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
-import Prelude hiding (add)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Byte" do
