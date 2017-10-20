@@ -1,5 +1,7 @@
 module Data.Binary
-  ( class Binary
+  ( module Bit
+  , module Bits   
+  , class Binary
   , class Elastic
   , class Fixed
   , class FitsInt
@@ -9,6 +11,10 @@ module Data.Binary
   , discardOverflow
   , _0
   , _1
+  , half
+  , double
+  , isOdd
+  , isEven
   , invert
   , add'
   , add
@@ -37,6 +43,8 @@ import Control.Apply ((<$>))
 import Control.Bind ((>=>))
 import Data.Array (uncons, (:))
 import Data.Array as A
+import Data.Bit as Bit
+import Data.Bits as Bits
 import Data.Bit (Bit(..), bitToChar, charToBit)
 import Data.Bits (Bits(..), bitsArray, intToBits, lastBit, makeBits, reverseBits, zeroWiden)
 import Data.BooleanAlgebra (not)
