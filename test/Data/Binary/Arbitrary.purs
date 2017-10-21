@@ -2,11 +2,11 @@ module Data.Binary.Arbitrary where
 
 import Prelude
 
-import Data.Binary (Byte(..), Nibble(..))
-import Data.Bit (Bit(..))
-import Data.Bits (Bits(..))
+import Data.Binary.Byte (Byte(..))
+import Data.Binary.Nibble (Nibble(..))
+import Data.Binary.Bit (Bit(..))
+import Data.Binary.Bits (Bits(..))
 import Data.Newtype (class Newtype, unwrap)
-import Data.NonEmpty (NonEmpty(..))
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Test.QuickCheck.Gen (Gen, sized, suchThat, vectorOf)
 
@@ -28,7 +28,7 @@ derive newtype instance showArbBits :: Show ArbBits
 
 instance arbitraryBits :: Arbitrary ArbBits where
   arbitrary =
-    ArbBits <$> Bits <$> (NonEmpty <$> arbBit <*> arbBits) where
+    ArbBits <$> Bits <$> arbBits where
       arbBits = sized \s -> vectorOf s arbBit
       arbBit = unwrap <$> (arbitrary :: Gen ArbBit)
 

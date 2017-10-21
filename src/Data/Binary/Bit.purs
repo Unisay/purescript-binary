@@ -1,4 +1,4 @@
-module Data.Bit
+module Data.Binary.Bit
   ( Bit(..)
   , charToBit
   , bitToChar
