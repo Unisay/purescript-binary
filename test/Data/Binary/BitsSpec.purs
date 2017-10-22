@@ -1,18 +1,14 @@
 module Data.Binary.Bits.Spec (spec) where
 
-import Prelude hiding (add)
-
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
-import Data.Binary.Class (_0, add, leftShift, rightShift, toBinString, toBits, tryToInt)
 import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbNonNegativeInt(..))
-import Data.Binary.Bit (Bit(..))
-import Data.Binary.Bits (Bits(..))
-import Data.Binary.Elastic (addLeadingZeros, fromBits, fromInt, stripLeadingZeros, tryFromBinStringElastic)
+import Data.Binary.Class (Bit(..), Bits(..), _0, add, leftShift, rightShift, toBinString, toBits, tryToInt, addLeadingZeros, fromBits, fromInt, stripLeadingZeros, tryFromBinStringElastic)
 import Data.Binary.Overflow (Overflow(..))
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
 import Data.String as Str
+import Prelude hiding (add)
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)

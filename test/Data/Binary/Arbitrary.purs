@@ -2,8 +2,7 @@ module Data.Binary.Arbitrary where
 
 import Prelude
 
-import Data.Binary.Bit (Bit(..))
-import Data.Binary.Bits (Bits(..))
+import Data.Binary (Bit(..), Bits(..))
 import Data.Binary.Byte (Byte(..))
 import Data.Binary.Nibble (Nibble(..))
 import Data.Int (toNumber)

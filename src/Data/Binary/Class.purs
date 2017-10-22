@@ -1,5 +1,10 @@
 module Data.Binary.Class
-  ( module Bit
+  ( Bit(..)
+  , bitToChar
+  , charToBit
+  , Bits(..)
+  , align
+  , intToBits
   , class Binary
   , class Fixed
   , class FitsInt
@@ -23,24 +28,91 @@ module Data.Binary.Class
   , toBits
   , tryFromBits
   , numBits
+  , class Elastic
+  , fromBits
+  , extendOverflow
+  , addLeadingZeros
+  , stripLeadingZeros
+  , extendAdd
+  , tryFromBinStringElastic
+  , fromInt
+  , half
+  , double
+  , diff
+  , divMod
+  , multiply
   ) where
 
 import Conditional (ifelse)
 import Control.Plus (empty)
+import Data.Array (singleton)
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary.Bit (Bit(..), bitToChar, charToBit)
-import Data.Binary.Bit as Bit
-import Data.Binary.Bits (Bits(..), align, intToBits)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)
 import Data.Maybe (Maybe(Nothing, Just), maybe)
-import Data.Newtype (unwrap)
-import Data.String (fromCharArray, toCharArray)
+import Data.Newtype (class Newtype, unwrap, wrap)
+import Data.String as Str
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(Tuple), uncurry)
 import Data.Tuple.Nested (get1)
 import Prelude hiding (add)
 import Type.Proxy (Proxy)
+
+newtype Bit = Bit Boolean
+derive instance newtypeBit :: Newtype Bit _
+derive newtype instance eqBit :: Eq Bit
+derive newtype instance ordBit :: Ord Bit
+derive newtype instance heytingAlgebraBit :: HeytingAlgebra Bit
+derive newtype instance booleanAlgebraBit :: BooleanAlgebra Bit
+derive newtype instance boundedBit :: Bounded Bit
+
+instance showBit :: Show Bit where
+  show = bitToChar >>> singleton >>> Str.fromCharArray
+
+charToBit :: Char -> Maybe Bit
+charToBit '1' = Just (Bit true)
+charToBit '0' = Just (Bit false)
+charToBit _   = Nothing
+
+bitToChar :: Bit -> Char
+bitToChar (Bit true)  = '1'
+bitToChar (Bit false) = '0'
+
+
+newtype Bits = Bits (Array Bit)
+derive instance newtypeBits :: Newtype Bits _
+derive newtype instance eqBits :: Eq Bits
+derive newtype instance showBits :: Show Bits
+derive newtype instance semigroupBits :: Semigroup Bits
+
+instance ordBits :: Ord Bits where
+  compare a b = uncurry compare $ bimap unwrap unwrap $ align a b
+
+instance semiringBits :: Semiring Bits where
+  zero = _0
+  add = extendAdd
+  one = _1
+  mul = multiply
+
+-- | Converts a non-negative `Int` value into an `Bits`
+intToBits :: Int -> Bits
+intToBits = f >>> A.dropWhile (eq (Bit false)) >>> Bits where
+  f 0 = [Bit false]
+  f n | n `mod` 2 == 1 = A.snoc (f (n `div` 2)) (Bit true)
+      | otherwise = A.snoc (f (n `div` 2)) (Bit false)
+
+-- | align length by adding zeroes from the left
+align :: Bits -> Bits -> Tuple Bits Bits
+align bas@(Bits as) bbs@(Bits bs) =
+  case compare la lb of
+  EQ -> Tuple bas bbs
+  LT -> Tuple (extend (lb - la) as) bbs
+  GT -> Tuple bas (extend (la - lb) bs)
+  where la = A.length as
+        lb = A.length bs
+        extend :: Int -> Array Bit -> Bits
+        extend d xs = Bits (A.replicate d (Bit false) <> xs)
+
 
 
 class Ord a <= Binary a where
@@ -80,11 +152,11 @@ isEven :: ∀ a. Binary a => a -> Boolean
 isEven = toBits >>> unwrap >>> A.last >>> maybe true (eq _0)
 
 toBinString :: ∀ a. Binary a => a -> String
-toBinString = toBits >>> unwrap >>> map bitToChar >>> fromCharArray
+toBinString = toBits >>> unwrap >>> map bitToChar >>> Str.fromCharArray
 
 tryFromBinString :: ∀ a. Fixed a => String -> Maybe a
 tryFromBinString =
-  toCharArray >>> traverse charToBit >=> Bits >>> tryFromBits
+  Str.toCharArray >>> traverse charToBit >=> Bits >>> tryFromBits
 
 class Binary a <= FitsInt a where
   toInt :: a -> Int
@@ -149,3 +221,84 @@ unsafeRightShift a = discardOverflow (rightShift _0 a)
 
 unsafeLeftShift :: ∀ a. Binary a => a -> a
 unsafeLeftShift a = discardOverflow (leftShift _0 a)
+
+
+
+class Binary a <= Elastic a where
+  fromBits :: Bits -> a
+  extendOverflow :: Overflow Bit a -> a
+
+instance elasticArrayBit :: Elastic Bits where
+  fromBits (Bits []) = _0
+  fromBits bs = bs
+  extendOverflow (Overflow (Bit false) bits) = bits
+  extendOverflow (Overflow bit (Bits bits)) = Bits $ A.cons bit bits
+
+addLeadingZeros :: ∀ a. Elastic a => Int -> a -> a
+addLeadingZeros w = toBits
+                >>> unwrap
+                >>> f
+                >>> wrap
+                >>> fromBits
+  where
+    f bits = let d = sub w (A.length bits)
+             in if d < 1 then bits
+                         else (A.replicate d _0) <> bits
+
+stripLeadingZeros :: ∀ a. Elastic a => a -> a
+stripLeadingZeros = toBits
+                >>> unwrap
+                >>> A.dropWhile (eq _0)
+                >>> wrap
+                >>> fromBits
+
+extendAdd :: ∀ a. Elastic a => a -> a -> a
+extendAdd a b = extendOverflow (add a b)
+
+tryFromBinStringElastic :: ∀ a. Elastic a => String -> Maybe a
+tryFromBinStringElastic =
+  Str.toCharArray >>> traverse charToBit >>> map wrap >>> map fromBits
+
+fromInt :: ∀ a. Elastic a => Int -> a
+fromInt = intToBits >>> fromBits
+
+half :: ∀ a. Elastic a => a -> a
+half = rightShift _0 >>> discardOverflow >>> stripLeadingZeros
+
+double :: ∀ a. Elastic a => a -> a
+double = leftShift _0 >>> extendOverflow >>> stripLeadingZeros
+
+diff :: ∀ a. Elastic a => a -> a -> a
+diff a b | a == b =  _0
+diff a b | a < b = diff b a
+diff a b = fromBits (stripLeadingZeros bits) where
+  bits = let (Tuple _ acc) = A.foldr f (Tuple false []) pairs in Bits acc
+  f :: (Tuple Bit Bit) -> Tuple Boolean (Array Bit) -> Tuple Boolean (Array Bit)
+  -- https://i.stack.imgur.com/5M40R.jpg
+  f (Tuple (Bit false) (Bit false)) (Tuple false rs) = Tuple false (A.cons _0 rs)
+  f (Tuple (Bit false) (Bit false)) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
+  f (Tuple (Bit false) (Bit true) ) (Tuple false rs) = Tuple true  (A.cons _1 rs)
+  f (Tuple (Bit false) (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _0 rs)
+  f (Tuple (Bit true)  (Bit false)) (Tuple false rs) = Tuple false (A.cons _1 rs)
+  f (Tuple (Bit true)  (Bit false)) (Tuple true rs)  = Tuple false (A.cons _0 rs)
+  f (Tuple (Bit true)  (Bit true) ) (Tuple false rs) = Tuple false (A.cons _0 rs)
+  f (Tuple (Bit true)  (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
+  pairs = uncurry A.zip $ bimap unwrap unwrap $ align (toBits a) (toBits b)
+
+divMod :: ∀ a. Elastic a => a -> a -> Tuple a a
+divMod x _ | x == _0 = Tuple _0 _0
+divMod x y = if r' >= y
+             then Tuple (inc q) (r' `diff` y)
+             else Tuple q r'
+  where
+    t = divMod (half x) y
+    (Tuple q r) = bimap double double t
+    r' = if isOdd x then inc r else r
+    inc a = extendAdd a _1
+
+multiply :: ∀ a. Elastic a => a -> a -> a
+multiply x _ | x == _0 = _0
+multiply _ y | y == _0 = _0
+multiply x y = let z = multiply x (half y)
+               in if isEven y then double z
+                              else extendAdd x (double z)

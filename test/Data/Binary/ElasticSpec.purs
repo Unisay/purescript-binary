@@ -5,9 +5,7 @@ import Prelude
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
 import Data.Binary.Arbitrary (ArbNonNegativeInt(ArbNonNegativeInt), NonOverflowingMultiplicands(..))
-import Data.Binary.Bits (Bits(..))
-import Data.Binary.Class (toBinString, tryToInt)
-import Data.Binary.Elastic (addLeadingZeros, diff, divMod, double, extendAdd, fromInt, half, multiply)
+import Data.Binary.Class (Bits(..), toBinString, tryToInt, addLeadingZeros, diff, divMod, double, extendAdd, fromInt, half, multiply)
 import Data.Maybe (Maybe(..))
 import Data.Ord (abs)
 import Data.Tuple (Tuple(..))
