@@ -2,18 +2,27 @@ module Data.Binary.Arbitrary where
 
 import Prelude
 
-import Data.Binary.Byte (Byte(..))
-import Data.Binary.Nibble (Nibble(..))
 import Data.Binary.Bit (Bit(..))
 import Data.Binary.Bits (Bits(..))
+import Data.Binary.Byte (Byte(..))
+import Data.Binary.Nibble (Nibble(..))
+import Data.Int (toNumber)
 import Data.Newtype (class Newtype, unwrap)
+import Data.Tuple (Tuple(..))
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Test.QuickCheck.Gen (Gen, sized, suchThat, vectorOf)
 
 newtype ArbNonNegativeInt = ArbNonNegativeInt Int
-
 instance arbitraryNonNegativeInt :: Arbitrary ArbNonNegativeInt where
   arbitrary = ArbNonNegativeInt <$> suchThat arbitrary (_ >= 0)
+
+newtype NonOverflowingMultiplicands = NonOverflowingMultiplicands (Tuple Int Int)
+instance arbitraryNonOverflowingMultiplicands :: Arbitrary NonOverflowingMultiplicands where
+  arbitrary = NonOverflowingMultiplicands <$> (flip suchThat nonOverflowing) do
+    (ArbNonNegativeInt a) <- arbitrary
+    (ArbNonNegativeInt b) <- arbitrary
+    pure (Tuple a b)
+    where nonOverflowing (Tuple a b) = (toNumber a) * (toNumber b) <= toNumber (top :: Int)
 
 newtype ArbBit = ArbBit Bit
 derive instance newtypeArbBit :: Newtype ArbBit _

@@ -11,13 +11,14 @@ module Data.Binary.Elastic
   , double
   , diff
   , divMod
+  , multiply
   ) where
 
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary.Class (class Binary, _0, _1, add, isOdd, leftShift, rightShift, toBits)
 import Data.Binary.Bit (Bit(..), charToBit)
 import Data.Binary.Bits (Bits(..), align, intToBits)
+import Data.Binary.Class (class Binary, _0, _1, add, isEven, isOdd, leftShift, rightShift, toBits)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)
 import Data.Foldable (foldr)
 import Data.Maybe (Maybe)
@@ -26,6 +27,7 @@ import Data.String as Str
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), uncurry)
 import Prelude hiding (add)
+
 
 class Binary a <= Elastic a where
   fromBits :: Bits -> a
@@ -98,3 +100,10 @@ divMod x y = if r' >= y
     (Tuple q r) = bimap double double t
     r' = if isOdd x then inc r else r
     inc a = extendAdd a _1
+
+multiply :: ∀ a. Elastic a => a -> a -> a
+multiply x _ | x == _0 = _0
+multiply _ y | y == _0 = _0
+multiply x y = let z = multiply x (half y)
+               in if isEven y then double z
+                              else extendAdd x (double z)

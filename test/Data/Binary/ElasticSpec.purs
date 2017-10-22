@@ -4,10 +4,10 @@ import Prelude
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
-import Data.Binary.Class (toBinString, tryToInt)
-import Data.Binary.Arbitrary (ArbNonNegativeInt(ArbNonNegativeInt))
+import Data.Binary.Arbitrary (ArbNonNegativeInt(ArbNonNegativeInt), NonOverflowingMultiplicands(..))
 import Data.Binary.Bits (Bits(..))
-import Data.Binary.Elastic (addLeadingZeros, diff, divMod, double, extendAdd, fromInt, half)
+import Data.Binary.Class (toBinString, tryToInt)
+import Data.Binary.Elastic (addLeadingZeros, diff, divMod, double, extendAdd, fromInt, half, multiply)
 import Data.Maybe (Maybe(..))
 import Data.Ord (abs)
 import Data.Tuple (Tuple(..))
@@ -17,13 +17,14 @@ import Test.Unit.QuickCheck (quickCheck)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Elastic Binary" do
-  test "add"    $ quickCheck propAdd
   test "addLeadingZeros" $ quickCheck propAddLeadingZeros
   test "double" $ quickCheck propDouble
   test "half"   $ quickCheck propHalf
   test "diff"   $ quickCheck propDiff
   test "div"    $ quickCheck propDiv
   test "mod"    $ quickCheck propMod
+  test "add"    $ quickCheck propAdd
+  test "mul"    $ quickCheck propMultiply
 
 propAddLeadingZeros :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
 propAddLeadingZeros (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
@@ -33,14 +34,6 @@ propAddLeadingZeros (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
     bits'@(Bits bs') = addLeadingZeros b bits
     len = A.length bs
     len' = A.length bs'
-
-propAdd :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
-propAdd (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
-  Just (a + b) === tryToInt asbs
-  where
-  asbs = extendAdd as bs
-  as = fromInt a :: Bits
-  bs = fromInt b :: Bits
 
 propDouble :: ArbNonNegativeInt -> Result
 propDouble (ArbNonNegativeInt i) =
@@ -68,16 +61,30 @@ propDiff (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
 
 propDiv :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
 propDiv (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
-  Just expected === tryToInt dv where
-    expected = div a b
+  Just (a `div` b) === tryToInt dv where
     as = fromInt a :: Bits
     bs = fromInt b :: Bits
     (Tuple dv _) = divMod as bs
 
 propMod :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
 propMod (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
-  Just expected === tryToInt md where
-    expected = mod a b
+  Just (a `mod` b) === tryToInt md where
     as = fromInt a :: Bits
     bs = fromInt b :: Bits
     (Tuple _ md) = divMod as bs
+
+propAdd :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
+propAdd (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
+  Just (a + b) === tryToInt res where
+    as = fromInt a :: Bits
+    bs = fromInt b :: Bits
+    res = extendAdd as bs
+
+propMultiply :: NonOverflowingMultiplicands -> Result
+propMultiply (NonOverflowingMultiplicands (Tuple a b)) =
+  toBinString ires === toBinString bres where
+    as = fromInt a :: Bits
+    bs = fromInt b :: Bits
+    ires :: Bits
+    ires = fromInt (a * b)
+    bres = multiply as bs
