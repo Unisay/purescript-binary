@@ -1,7 +1,7 @@
 module Data.Binary.Byte.Spec (spec) where
 
 import Control.Monad.Eff.Random (RANDOM)
-import Data.Binary (add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
+import Data.Binary.Class (add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
 import Data.Binary.Arbitrary (ArbBit(..), ArbByte(..))
 import Data.Binary.Bit (Bit(..))
 import Data.Binary.Byte (Byte(..))

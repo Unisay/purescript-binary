@@ -2,7 +2,7 @@ module Data.Binary.Byte
   ( Byte(..)
   ) where
 
-import Data.Binary (class Binary, class FitsInt, class Fixed, _0, _1, add', invert, leftShift, rightShift, toBinString, toBits, toInt)
+import Data.Binary.Class (class Binary, class FitsInt, class Fixed, _0, _1, add', invert, leftShift, rightShift, toBinString, toBits, toInt)
 import Data.Binary.Bits (Bits(..))
 import Data.Binary.Elastic (addLeadingZeros)
 import Data.Binary.Nibble (Nibble(..))

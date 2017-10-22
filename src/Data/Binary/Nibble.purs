@@ -3,7 +3,7 @@ module Data.Binary.Nibble
   ) where
 
 import Conditional (ifelse)
-import Data.Binary (class Binary, class FitsInt, class Fixed, _0, _1, add', invert, toBinString, toBits)
+import Data.Binary.Class (class Binary, class FitsInt, class Fixed, _0, _1, add', invert, toBinString, toBits)
 import Data.Binary.Bit (Bit(..))
 import Data.Binary.Bits (Bits(..))
 import Data.Binary.Elastic (addLeadingZeros)

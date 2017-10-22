@@ -15,7 +15,7 @@ module Data.Binary.Elastic
 
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary (class Binary, _0, _1, add, isOdd, leftShift, rightShift, toBits)
+import Data.Binary.Class (class Binary, _0, _1, add, isOdd, leftShift, rightShift, toBits)
 import Data.Binary.Bit (Bit(..), charToBit)
 import Data.Binary.Bits (Bits(..), align, intToBits)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)

@@ -4,7 +4,7 @@ import Prelude hiding (add)
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
-import Data.Binary (_0, add, leftShift, rightShift, toBinString, toBits, tryToInt)
+import Data.Binary.Class (_0, add, leftShift, rightShift, toBinString, toBits, tryToInt)
 import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbNonNegativeInt(..))
 import Data.Binary.Bit (Bit(..))
 import Data.Binary.Bits (Bits(..))

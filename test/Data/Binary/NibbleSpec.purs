@@ -3,7 +3,7 @@ module Data.Binary.Nibble.Spec
   ) where
 
 import Control.Monad.Eff.Random (RANDOM)
-import Data.Binary (add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
+import Data.Binary.Class (add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
 import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbNibble(ArbNibble))
 import Data.Binary.Bit (Bit(..))
 import Data.Binary.Nibble (Nibble(..))
