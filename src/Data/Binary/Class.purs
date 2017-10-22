@@ -94,6 +94,9 @@ instance semiringBits :: Semiring Bits where
   one = _1
   mul = multiply
 
+instance ringBits :: Ring Bits where
+  sub = diff
+
 -- | Converts a non-negative `Int` value into an `Bits`
 intToBits :: Int -> Bits
 intToBits = f >>> A.dropWhile (eq (Bit false)) >>> Bits where
