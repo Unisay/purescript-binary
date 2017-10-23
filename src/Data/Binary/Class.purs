@@ -8,6 +8,8 @@ module Data.Binary.Class
   , class Binary
   , class Fixed
   , diffFixed
+  , modAdd
+  , modMul
   , class FitsInt
   , _0
   , _1
@@ -29,7 +31,6 @@ module Data.Binary.Class
   , toBits
   , tryFromBits
   , numBits
-  , modAdd
   , class Elastic
   , fromBits
   , extendOverflow
@@ -187,12 +188,18 @@ class (Bounded a, Binary a) <= Fixed a where
 
 modAdd :: ∀ a. Fixed a => a -> a -> a
 modAdd a b = unsafeFixedFromBits result where
+  nBits = numBits (Proxy :: Proxy a)
   result = mkBits (add (toBits a) (toBits b))
+  numValues m = _1 <> Bits (A.replicate m _0)
   mkBits (Overflow (Bit false) bits) = bits
-  mkBits res = diffAsBits (extendOverflow res) (maxValue (numBits proxy))
-  maxValue m = _1 <> Bits (A.replicate m _0)
-  proxy :: Proxy a
-  proxy = Proxy
+  mkBits res = diffAsBits (extendOverflow res) (numValues nBits)
+
+modMul :: ∀ a. Fixed a => a -> a -> a
+modMul a b = unsafeFixedFromBits rem where
+  nBits = numBits (Proxy :: Proxy a)
+  mres = multiply (toBits a) (toBits b)
+  numValues m = _1 <> Bits (A.replicate m _0)
+  (Tuple _ rem) = divMod mres (numValues nBits)
 
 diffFixed :: ∀ a. Fixed a => a -> a -> a
 diffFixed a b = unsafeFixedFromBits (diffAsBits a b) -- safe, as diff is always less than operands
