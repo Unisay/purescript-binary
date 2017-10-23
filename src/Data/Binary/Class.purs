@@ -7,6 +7,7 @@ module Data.Binary.Class
   , intToBits
   , class Binary
   , class Fixed
+  , diffFixed
   , class FitsInt
   , _0
   , _1
@@ -28,6 +29,7 @@ module Data.Binary.Class
   , toBits
   , tryFromBits
   , numBits
+  , modAdd
   , class Elastic
   , fromBits
   , extendOverflow
@@ -38,7 +40,7 @@ module Data.Binary.Class
   , fromInt
   , half
   , double
-  , diff
+  , diffElastic
   , divMod
   , multiply
   ) where
@@ -49,14 +51,16 @@ import Data.Array (singleton)
 import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)
-import Data.Maybe (Maybe(Nothing, Just), maybe)
+import Data.Maybe (Maybe(Nothing, Just), fromMaybe', maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.String as Str
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(Tuple), uncurry)
 import Data.Tuple.Nested (get1)
+import Partial.Unsafe (unsafeCrashWith)
 import Prelude hiding (add)
-import Type.Proxy (Proxy)
+import Type.Proxy (Proxy(Proxy))
+
 
 newtype Bit = Bit Boolean
 derive instance newtypeBit :: Newtype Bit _
@@ -95,14 +99,14 @@ instance semiringBits :: Semiring Bits where
   mul = multiply
 
 instance ringBits :: Ring Bits where
-  sub = diff
+  sub = diffElastic
 
 -- | Converts a non-negative `Int` value into an `Bits`
 intToBits :: Int -> Bits
 intToBits = f >>> A.dropWhile (eq (Bit false)) >>> Bits where
-  f 0 = [Bit false]
-  f n | n `mod` 2 == 1 = A.snoc (f (n `div` 2)) (Bit true)
-      | otherwise = A.snoc (f (n `div` 2)) (Bit false)
+  f 0 = [_0]
+  f n | n `mod` 2 == 1 = A.snoc (f (n `div` 2)) _1
+      | otherwise = A.snoc (f (n `div` 2)) _0
 
 -- | align length by adding zeroes from the left
 align :: Bits -> Bits -> Tuple Bits Bits
@@ -114,7 +118,7 @@ align bas@(Bits as) bbs@(Bits bs) =
   where la = A.length as
         lb = A.length bs
         extend :: Int -> Array Bit -> Bits
-        extend d xs = Bits (A.replicate d (Bit false) <> xs)
+        extend d xs = Bits (A.replicate d _0 <> xs)
 
 
 
@@ -130,23 +134,17 @@ class Ord a <= Binary a where
 instance binaryBits :: Binary Bits where
   _0 = Bits (pure _0)
   _1 = Bits (pure _1)
-
   invert (Bits bits) = Bits (map invert bits)
-
   add' bit abits@(Bits as) bbits@(Bits bs) =
     Bits <$> A.foldr f acc pairs where
       f (Tuple a b) (Overflow o t) = flip A.cons t <$> add' o a b
       acc = Overflow bit empty
       pairs = uncurry A.zip $ bimap unwrap unwrap $ align abits bbits
-
   leftShift bit (Bits bits) = Bits <$> A.foldr f (Overflow bit []) bits
     where f a (Overflow o t) = flip A.cons t <$> leftShift o a
-
   rightShift bit (Bits bits) = Bits <$> A.foldl f (Overflow bit []) bits
     where f (Overflow o t) a = A.snoc t <$> rightShift o a
-
   toBits = id
-
 
 isOdd :: ∀ a. Binary a => a -> Boolean
 isOdd = toBits >>> unwrap >>> A.last >>> maybe false (eq _1)
@@ -161,12 +159,47 @@ tryFromBinString :: ∀ a. Fixed a => String -> Maybe a
 tryFromBinString =
   Str.toCharArray >>> traverse charToBit >=> Bits >>> tryFromBits
 
+diffAsBits :: ∀ a. Binary a => a -> a -> Bits
+diffAsBits a b | a == b =  _0
+diffAsBits a b | a < b = diffAsBits b a
+diffAsBits a b = stripLeadingZeros (Bits acc) where
+  f :: (Tuple Bit Bit) -> Tuple Boolean (Array Bit) -> Tuple Boolean (Array Bit)
+  -- https://i.stack.imgur.com/5M40R.jpg
+  f (Tuple (Bit false) (Bit false)) (Tuple false rs) = Tuple false (A.cons _0 rs)
+  f (Tuple (Bit false) (Bit false)) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
+  f (Tuple (Bit false) (Bit true) ) (Tuple false rs) = Tuple true  (A.cons _1 rs)
+  f (Tuple (Bit false) (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _0 rs)
+  f (Tuple (Bit true)  (Bit false)) (Tuple false rs) = Tuple false (A.cons _1 rs)
+  f (Tuple (Bit true)  (Bit false)) (Tuple true rs)  = Tuple false (A.cons _0 rs)
+  f (Tuple (Bit true)  (Bit true) ) (Tuple false rs) = Tuple false (A.cons _0 rs)
+  f (Tuple (Bit true)  (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
+  pairs = uncurry A.zip $ bimap unwrap unwrap $ align (toBits a) (toBits b)
+  (Tuple _ acc) = A.foldr f (Tuple false []) pairs
+
+
 class Binary a <= FitsInt a where
   toInt :: a -> Int
 
-class Binary a <= Fixed a where
+
+class (Bounded a, Binary a) <= Fixed a where
   numBits :: Proxy a -> Int
   tryFromBits :: Bits -> Maybe a
+
+modAdd :: ∀ a. Fixed a => a -> a -> a
+modAdd a b = unsafeFixedFromBits result where
+  result = mkBits (add (toBits a) (toBits b))
+  mkBits (Overflow (Bit false) bits) = bits
+  mkBits res = diffAsBits (extendOverflow res) (maxValue (numBits proxy))
+  maxValue m = _1 <> Bits (A.replicate m _0)
+  proxy :: Proxy a
+  proxy = Proxy
+
+diffFixed :: ∀ a. Fixed a => a -> a -> a
+diffFixed a b = unsafeFixedFromBits (diffAsBits a b) -- safe, as diff is always less than operands
+
+unsafeFixedFromBits :: ∀ a. Fixed a => Bits -> a
+unsafeFixedFromBits bits = fromMaybe' (\_ -> unsafeCrashWith err) (tryFromBits bits) where
+  err = "Unsafe conversion of Bits to a Fixed value has failed"
 
 tryToInt :: ∀ a. Binary a => a -> Maybe Int
 tryToInt binary | (Bits bts) <- toBits binary =
@@ -202,7 +235,6 @@ instance binaryBit :: Binary Bit where
 
 instance fixedBit :: Fixed Bit where
   numBits _ = 1
-
   tryFromBits (Bits [b]) = Just b
   tryFromBits _ = Nothing
 
@@ -271,27 +303,13 @@ half = rightShift _0 >>> discardOverflow >>> stripLeadingZeros
 double :: ∀ a. Elastic a => a -> a
 double = leftShift _0 >>> extendOverflow >>> stripLeadingZeros
 
-diff :: ∀ a. Elastic a => a -> a -> a
-diff a b | a == b =  _0
-diff a b | a < b = diff b a
-diff a b = fromBits (stripLeadingZeros bits) where
-  bits = let (Tuple _ acc) = A.foldr f (Tuple false []) pairs in Bits acc
-  f :: (Tuple Bit Bit) -> Tuple Boolean (Array Bit) -> Tuple Boolean (Array Bit)
-  -- https://i.stack.imgur.com/5M40R.jpg
-  f (Tuple (Bit false) (Bit false)) (Tuple false rs) = Tuple false (A.cons _0 rs)
-  f (Tuple (Bit false) (Bit false)) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
-  f (Tuple (Bit false) (Bit true) ) (Tuple false rs) = Tuple true  (A.cons _1 rs)
-  f (Tuple (Bit false) (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _0 rs)
-  f (Tuple (Bit true)  (Bit false)) (Tuple false rs) = Tuple false (A.cons _1 rs)
-  f (Tuple (Bit true)  (Bit false)) (Tuple true rs)  = Tuple false (A.cons _0 rs)
-  f (Tuple (Bit true)  (Bit true) ) (Tuple false rs) = Tuple false (A.cons _0 rs)
-  f (Tuple (Bit true)  (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
-  pairs = uncurry A.zip $ bimap unwrap unwrap $ align (toBits a) (toBits b)
+diffElastic :: ∀ a. Elastic a => a -> a -> a
+diffElastic a b = fromBits (diffAsBits a b)
 
 divMod :: ∀ a. Elastic a => a -> a -> Tuple a a
 divMod x _ | x == _0 = Tuple _0 _0
 divMod x y = if r' >= y
-             then Tuple (inc q) (r' `diff` y)
+             then Tuple (inc q) (r' `diffElastic` y)
              else Tuple q r'
   where
     t = divMod (half x) y

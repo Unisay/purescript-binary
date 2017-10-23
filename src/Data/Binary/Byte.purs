@@ -2,7 +2,8 @@ module Data.Binary.Byte
   ( Byte(..)
   ) where
 
-import Data.Binary.Class (class Binary, class FitsInt, class Fixed, Bits(..), _0, _1, add', addLeadingZeros, invert, leftShift, rightShift, toBinString, toBits, toInt)
+
+import Data.Binary.Class (class Binary, class FitsInt, class Fixed, Bits(Bits), _0, _1, add', addLeadingZeros, invert, leftShift, rightShift, toBinString, toBits, toInt)
 import Data.Binary.Nibble (Nibble(..))
 import Data.Binary.Overflow (Overflow(..))
 import Data.Maybe (Maybe(..))

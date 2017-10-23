@@ -5,7 +5,7 @@ import Prelude
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
 import Data.Binary.Arbitrary (ArbNonNegativeInt(ArbNonNegativeInt), NonOverflowingMultiplicands(..))
-import Data.Binary.Class (Bits(..), toBinString, tryToInt, addLeadingZeros, diff, divMod, double, extendAdd, fromInt, half, multiply)
+import Data.Binary.Class (Bits(..), addLeadingZeros, diffElastic, divMod, double, extendAdd, fromInt, half, multiply, toBinString, tryToInt)
 import Data.Maybe (Maybe(..))
 import Data.Ord (abs)
 import Data.Tuple (Tuple(..))
@@ -53,7 +53,7 @@ propDiff (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
                 <> show binRes <> " /= " <> show intRes
   where
     intRes = abs (a - b)
-    binRes = tryToInt (diff as bs)
+    binRes = tryToInt (diffElastic as bs)
     as = fromInt a :: Bits
     bs = fromInt b :: Bits
 

@@ -3,7 +3,7 @@ module Data.Binary.Byte.Spec (spec) where
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Binary.Arbitrary (ArbBit(..), ArbByte(..))
 import Data.Binary.Byte (Byte(..))
-import Data.Binary.Class (Bit(..), add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
+import Data.Binary.Class (Bit(..), add, leftShift, modAdd, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
 import Data.Binary.Nibble (Nibble(..))
 import Data.Binary.Overflow (Overflow(..))
 import Data.Foldable (all)
@@ -24,6 +24,7 @@ spec = suite "Byte" do
   test "addition works like Int" $ quickCheck propAddition
   test "left shift" $ quickCheck propLeftShift
   test "right shift" $ quickCheck propRightShift
+  test "modular addition" $ quickCheck propModAdd
 
 propToStringLength :: ArbByte -> Result
 propToStringLength (ArbByte n) = 8 === length (toBinString n)
@@ -63,3 +64,9 @@ propRightShift :: ArbBit -> ArbByte -> Result
 propRightShift (ArbBit a0) (ArbByte b@(Byte (Nibble a1 a2 a3 a4) (Nibble a5 a6 a7 a8))) =
   let (Overflow b8 (Byte (Nibble b0 b1 b2 b3) (Nibble b4 b5 b6 b7))) = rightShift a0 b
   in [a0, a1, a2, a3, a4, a5, a6, a7, a8] === [b0, b1, b2, b3, b4, b5, b6, b7, b8]
+
+propModAdd :: ArbByte -> ArbByte -> Result
+propModAdd (ArbByte a) (ArbByte b) =
+  (ia + ib) `mod` 256 === toInt (modAdd a b) where
+    ia = toInt a
+    ib = toInt b
