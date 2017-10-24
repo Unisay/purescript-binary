@@ -44,15 +44,21 @@ module Data.Binary.Class
   , diffElastic
   , divMod
   , multiply
+  , toStringAs
+  , Radix
+  , bin
+  , oct
+  , dec
+  , hex
   ) where
 
 import Conditional (ifelse)
 import Control.Plus (empty)
-import Data.Array (singleton)
+import Data.Array (singleton, (!!))
 import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)
-import Data.Maybe (Maybe(Nothing, Just), fromMaybe', maybe)
+import Data.Maybe (Maybe(Nothing, Just), fromMaybe, fromMaybe', maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.String as Str
 import Data.Traversable (traverse)
@@ -335,28 +341,35 @@ multiply x y = let z = multiply x (half y)
 -- | a specific base.
 newtype Radix = Radix Bits
 
+derive newtype instance eqRadix :: Eq Radix
+derive newtype instance showRadix :: Show Radix
+derive newtype instance ordRadix :: Ord Radix
+
 -- | The base-2 system.
 bin :: Radix
-bin = Radix $ Bits [_1, _0]
+bin = Radix (intToBits 2)
 
 -- | The base-8 system.
 oct :: Radix
-oct = Radix $ Bits [_1, _0, _0, _0]
+oct = Radix (intToBits 8)
 
 -- | The base-10 system.
 dec :: Radix
-dec = Radix $ Bits [_1, _0, _1, _0]
+dec = Radix (intToBits 10)
 
 -- | The base-16 system.
 hex :: Radix
-hex = Radix $ Bits [_1, _0, _0, _0, _0]
+hex = Radix (intToBits 16)
 
-toRadix :: ∀ a. Radix -> a -> String
-toRadix (Radix r) b = req (toBits b) [] where
+toStringAs :: ∀ a. Binary a => Radix -> a -> String
+toStringAs (Radix r) b = Str.fromCharArray (req (toBits b) []) where
   req bits acc | bits < r = bitsAsChar bits <> acc
   req bits acc =
     let (Tuple quo rem) = bits `divMod` r
-    in toRadix quo (bitsAsChar rem <> acc)
+    in req quo (bitsAsChar rem <> acc)
 
 bitsAsChar :: Bits -> Array Char
-bitsAsChar _ = ?bitsAsChar
+bitsAsChar bits = fromMaybe [] do
+  i <- tryToInt bits
+  c <- ['0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'] !! i
+  pure [c]
