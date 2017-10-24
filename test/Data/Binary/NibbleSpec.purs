@@ -18,7 +18,7 @@ import Test.Unit.QuickCheck (quickCheck)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Nibble" do
-  test "toBinString has length 4" $ quickCheck propToStringLength
+  test "toBinString has length <= 4" $ quickCheck propToStringLength
   test "toBinString contains only 0 and 1" $ quickCheck propHasBinDigits
   test "toBits >>> tryFromBits" $ quickCheck propBitsRoundtrip
   test "toInt >>> tryFromInt" $ quickCheck propIntRoundtrip
@@ -30,7 +30,8 @@ spec = suite "Nibble" do
   test "modular multiplication" $ quickCheck propModMul
 
 propToStringLength :: ArbNibble -> Result
-propToStringLength (ArbNibble n) = 4 === length (toBinString n)
+propToStringLength (ArbNibble n) = 4 >= length (toBinString n)
+  <?> "length (toBinString Nibble) > 4"
 
 propHasBinDigits :: ArbNibble -> Result
 propHasBinDigits (ArbNibble n) = (all (\d -> d == '1' || d == '0') $ toCharArray (toBinString n))

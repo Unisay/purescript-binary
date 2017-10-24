@@ -160,11 +160,17 @@ isEven :: ∀ a. Binary a => a -> Boolean
 isEven = toBits >>> unwrap >>> A.last >>> maybe true (eq _0)
 
 toBinString :: ∀ a. Binary a => a -> String
-toBinString = toBits >>> unwrap >>> map bitToChar >>> Str.fromCharArray
+toBinString = toBits
+          >>> unwrap
+          >>> A.dropWhile (eq _0)
+          >>> map bitToChar
+          >>> Str.fromCharArray
 
 tryFromBinString :: ∀ a. Fixed a => String -> Maybe a
-tryFromBinString =
-  Str.toCharArray >>> traverse charToBit >=> Bits >>> tryFromBits
+tryFromBinString = Str.toCharArray
+               >>> traverse charToBit
+               >=> Bits
+               >>> tryFromBits
 
 diffAsBits :: ∀ a. Binary a => a -> a -> Bits
 diffAsBits a b | a == b =  _0

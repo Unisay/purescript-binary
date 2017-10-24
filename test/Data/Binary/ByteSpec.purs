@@ -16,7 +16,7 @@ import Test.Unit.QuickCheck (quickCheck)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Byte" do
-  test "toBinString has length 8" $ quickCheck propToStringLength
+  test "toBinString has length <= 8" $ quickCheck propToStringLength
   test "toBinString contains only 0 and 1" $ quickCheck propHasBinDigits
   test "toBits >>> tryFromBits" $ quickCheck propBitsRoundtrip
   test "toInt >>> tryFromInt" $ quickCheck propIntRoundtrip
@@ -28,7 +28,8 @@ spec = suite "Byte" do
   test "modular multiplication" $ quickCheck propModMul
 
 propToStringLength :: ArbByte -> Result
-propToStringLength (ArbByte n) = 8 === length (toBinString n)
+propToStringLength (ArbByte n) = 8 >= length (toBinString n)
+  <?> "length (toBinString Byte) > 8"
 
 propHasBinDigits :: ArbByte -> Result
 propHasBinDigits (ArbByte n) = (all (\d -> d == '1' || d == '0') $ toCharArray (toBinString n))

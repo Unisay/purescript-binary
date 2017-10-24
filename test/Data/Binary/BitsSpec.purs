@@ -58,7 +58,7 @@ propBitsRoundtrip (ArbBits bs) =
 
 propStringRoundtrip :: ArbBits -> Result
 propStringRoundtrip (ArbBits bs) =
-  tryFromBinStringElastic (toBinString bs) === Just bs
+  Just (stripLeadingZeros bs) === tryFromBinStringElastic (toBinString bs)
 
 propIntRoundtrip :: ArbBits -> Result
 propIntRoundtrip (ArbBits bs@(Bits bits)) =
@@ -79,9 +79,13 @@ propAdditionRightIdentity (ArbBits a) =
 propLeftShift :: ArbBit -> ArbBits -> Result
 propLeftShift (ArbBit bit) (ArbBits bits) =
   let (Overflow o shifted) = leftShift bit bits
-  in toBinString bits <> toBinString bit === toBinString o <> toBinString shifted
+      expected = toBits bits <> toBits bit
+      actual = toBits o <> toBits shifted
+  in expected === actual
 
 propRightShift :: ArbBit -> ArbBits -> Result
 propRightShift (ArbBit bit) (ArbBits bits) =
   let (Overflow o shifted) = rightShift bit bits
-  in toBinString bit <> toBinString bits === toBinString shifted <> toBinString o
+      expected = toBits bit <> toBits bits
+      actual = toBits shifted <> toBits o
+  in expected === actual
