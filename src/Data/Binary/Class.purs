@@ -330,3 +330,33 @@ multiply _ y | y == _0 = _0
 multiply x y = let z = multiply x (half y)
                in if isEven y then double z
                               else extendAdd x (double z)
+
+-- | The number of unique digits (including zero) used to represent integers in
+-- | a specific base.
+newtype Radix = Radix Bits
+
+-- | The base-2 system.
+bin :: Radix
+bin = Radix $ Bits [_1, _0]
+
+-- | The base-8 system.
+oct :: Radix
+oct = Radix $ Bits [_1, _0, _0, _0]
+
+-- | The base-10 system.
+dec :: Radix
+dec = Radix $ Bits [_1, _0, _1, _0]
+
+-- | The base-16 system.
+hex :: Radix
+hex = Radix $ Bits [_1, _0, _0, _0, _0]
+
+toRadix :: ∀ a. Radix -> a -> String
+toRadix (Radix r) b = req (toBits b) [] where
+  req bits acc | bits < r = bitsAsChar bits <> acc
+  req bits acc =
+    let (Tuple quo rem) = bits `divMod` r
+    in toRadix quo (bitsAsChar rem <> acc)
+
+bitsAsChar :: Bits -> Array Char
+bitsAsChar _ = ?bitsAsChar
