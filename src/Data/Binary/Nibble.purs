@@ -3,7 +3,7 @@ module Data.Binary.Nibble
   ) where
 
 import Conditional (ifelse)
-import Data.Binary.Class (class Binary, class FitsInt, class Fixed, Bit(Bit), Bits(Bits), _0, _1, add, add', addLeadingZeros, diffFixed, invert, toBinString, toBits, unsafeAdd)
+import Data.Binary.Class (class Binary, class FitsInt, class Fixed, Bit(Bit), Bits(Bits), _0, _1, add', addLeadingZeros, invert, toBinString, toBits)
 import Data.Binary.Overflow (Overflow(..))
 import Data.Maybe (Maybe(..))
 import Prelude hiding (add)
@@ -44,9 +44,6 @@ instance fixedNibble :: Fixed Nibble where
   tryFromBits = addLeadingZeros 4 >>> f where
     f (Bits [a, b, c, d]) = Just (Nibble a b c d)
     f _ = Nothing
-  modAdd a b = f (add a b) where
-    f (Overflow (Bit false) x) = x
-    f (Overflow (Bit true) x) = unsafeAdd x _1
 
 instance fitsIntNibble :: FitsInt Nibble where
   toInt (Nibble a b c d) = 8 * bin a + 4 * bin b + 2 * bin c + bin d where

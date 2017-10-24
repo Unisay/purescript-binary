@@ -4,7 +4,7 @@ module Data.Binary.Nibble.Spec
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbNibble(ArbNibble))
-import Data.Binary.Class (Bit(..), add, leftShift, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
+import Data.Binary.Class (Bit(..), add, leftShift, modAdd, modMul, rightShift, toBinString, toBits, toInt, tryFromBinString, tryFromBits, tryFromInt)
 import Data.Binary.Nibble (Nibble(..))
 import Data.Binary.Overflow (Overflow(..))
 import Data.Foldable (all)
@@ -26,6 +26,8 @@ spec = suite "Nibble" do
   test "addition works like Int" $ quickCheck propAddition
   test "left shift" $ quickCheck propLeftShift
   test "right shift" $ quickCheck propRightShift
+  test "modular addition" $ quickCheck propModAdd
+  test "modular multiplication" $ quickCheck propModMul
 
 propToStringLength :: ArbNibble -> Result
 propToStringLength (ArbNibble n) = 4 === length (toBinString n)
@@ -60,3 +62,21 @@ propRightShift :: ArbBit -> ArbNibble -> Result
 propRightShift (ArbBit a) (ArbNibble n@(Nibble b c d e)) =
   let (Overflow e' (Nibble a' b' c' d')) = rightShift a n
   in [a, b, c, d, e] === [a', b', c', d', e']
+
+propModAdd :: ArbNibble -> ArbNibble -> Result
+propModAdd (ArbNibble a) (ArbNibble b) =
+    expected == actual
+     <?> "(" <> show ia <> " + " <> show ib <> ") `mod` 16 == "
+       <> show expected <> " /= " <> show actual
+    where
+      expected = (ia + ib) `mod` 16
+      actual = toInt (modAdd a b)
+      ia = toInt a
+      ib = toInt b
+
+propModMul :: ArbNibble -> ArbNibble -> Result
+propModMul (ArbNibble a) (ArbNibble b) =
+  (ia * ib) `mod` 16 === toInt (modMul a b)
+  where
+    ia = toInt a
+    ib = toInt b

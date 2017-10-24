@@ -2,7 +2,8 @@ module Data.Binary.Byte
   ( Byte(..)
   ) where
 
-import Data.Binary.Class (class Binary, class FitsInt, class Fixed, Bit(Bit), Bits(Bits), _0, _1, add, add', addLeadingZeros, diffFixed, invert, leftShift, rightShift, toBinString, toBits, toInt, unsafeAdd)
+
+import Data.Binary.Class (class Binary, class FitsInt, class Fixed, Bits(Bits), _0, _1, add', addLeadingZeros, invert, leftShift, rightShift, toBinString, toBits, toInt)
 import Data.Binary.Nibble (Nibble(..))
 import Data.Binary.Overflow (Overflow(..))
 import Data.Maybe (Maybe(..))
@@ -51,10 +52,6 @@ instance fixedByte :: Fixed Byte where
     p (Bits [a, b, c, d, e, f, g, h]) =
       Just (Byte (Nibble a b c d) (Nibble e f g h))
     p _ = Nothing
-  modAdd a b = f (add a b) where
-    f (Overflow (Bit false) x) = x
-    f (Overflow (Bit true) x) = unsafeAdd x _1
-
 
 instance fitsIntByte :: FitsInt Byte where
   toInt (Byte h l) = 16 * toInt h + toInt l

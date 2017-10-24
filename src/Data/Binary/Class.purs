@@ -8,6 +8,8 @@ module Data.Binary.Class
   , class Binary
   , class Fixed
   , diffFixed
+  , modAdd
+  , modMul
   , class FitsInt
   , _0
   , _1
@@ -29,7 +31,6 @@ module Data.Binary.Class
   , toBits
   , tryFromBits
   , numBits
-  , modAdd
   , class Elastic
   , fromBits
   , extendOverflow
@@ -59,8 +60,8 @@ import Data.Tuple (Tuple(Tuple), uncurry)
 import Data.Tuple.Nested (get1)
 import Partial.Unsafe (unsafeCrashWith)
 import Prelude hiding (add)
-import Type.Proxy (Proxy)
-import Unsafe.Coerce (unsafeCoerce)
+import Type.Proxy (Proxy(Proxy))
+
 
 newtype Bit = Bit Boolean
 derive instance newtypeBit :: Newtype Bit _
@@ -184,13 +185,28 @@ class Binary a <= FitsInt a where
 class (Bounded a, Binary a) <= Fixed a where
   numBits :: Proxy a -> Int
   tryFromBits :: Bits -> Maybe a
-  modAdd :: a -> a -> a
+
+modAdd :: ∀ a. Fixed a => a -> a -> a
+modAdd a b = unsafeFixedFromBits result where
+  nBits = numBits (Proxy :: Proxy a)
+  result = mkBits (add (toBits a) (toBits b))
+  numValues m = _1 <> Bits (A.replicate m _0)
+  mkBits (Overflow (Bit false) bits) = bits
+  mkBits res = diffAsBits (extendOverflow res) (numValues nBits)
+
+modMul :: ∀ a. Fixed a => a -> a -> a
+modMul a b = unsafeFixedFromBits rem where
+  nBits = numBits (Proxy :: Proxy a)
+  mres = multiply (toBits a) (toBits b)
+  numValues m = _1 <> Bits (A.replicate m _0)
+  (Tuple _ rem) = divMod mres (numValues nBits)
 
 diffFixed :: ∀ a. Fixed a => a -> a -> a
-diffFixed a b = fromMaybe' (\_ -> unsafeCrashWith err) maybeA where -- safe, as diff is always less than operands
-  err = "Failed to convert a diff result (Bits) back to Binary form: " <> show bits
-  maybeA = tryFromBits bits
-  bits = diffAsBits a b
+diffFixed a b = unsafeFixedFromBits (diffAsBits a b) -- safe, as diff is always less than operands
+
+unsafeFixedFromBits :: ∀ a. Fixed a => Bits -> a
+unsafeFixedFromBits bits = fromMaybe' (\_ -> unsafeCrashWith err) (tryFromBits bits) where
+  err = "Unsafe conversion of Bits to a Fixed value has failed"
 
 tryToInt :: ∀ a. Binary a => a -> Maybe Int
 tryToInt binary | (Bits bts) <- toBits binary =
@@ -228,10 +244,6 @@ instance fixedBit :: Fixed Bit where
   numBits _ = 1
   tryFromBits (Bits [b]) = Just b
   tryFromBits _ = Nothing
-  modAdd (Bit false) (Bit false) = _0
-  modAdd (Bit false) (Bit true)  = _1
-  modAdd (Bit true)  (Bit false) = _1
-  modAdd (Bit true)  (Bit true)  = _1
 
 instance fitsIntBit :: FitsInt Bit where
   toInt (Bit b) = ifelse b 1 0
