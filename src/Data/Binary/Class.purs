@@ -303,7 +303,7 @@ class Binary a <= Elastic a where
   fromBits :: Bits -> a
   extendOverflow :: Overflow Bit a -> a
 
-instance elasticArrayBit :: Elastic Bits where
+instance elasticBits :: Elastic Bits where
   fromBits (Bits []) = _0
   fromBits bs = bs
   extendOverflow (Overflow (Bit false) bits) = bits
