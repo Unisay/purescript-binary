@@ -4,7 +4,6 @@ module Data.Binary.Class
   , charToBit
   , Bits(..)
   , align
-  , intToBits
   , class Binary
   , class Fixed
   , diffFixed
@@ -58,6 +57,7 @@ import Data.Array (singleton, (!!))
 import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)
+import Data.Int.Bits as Int
 import Data.Maybe (Maybe(Nothing, Just), fromMaybe, fromMaybe', maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.String as Str
@@ -108,13 +108,6 @@ instance semiringBits :: Semiring Bits where
 instance ringBits :: Ring Bits where
   sub = diffElastic
 
--- | Converts a non-negative `Int` value into an `Bits`
-intToBits :: Int -> Bits
-intToBits = f >>> A.dropWhile (eq (Bit false)) >>> Bits where
-  f 0 = [_0]
-  f n | n `mod` 2 == 1 = A.snoc (f (n `div` 2)) _1
-      | otherwise = A.snoc (f (n `div` 2)) _0
-
 -- | align length by adding zeroes from the left
 align :: Bits -> Bits -> Tuple Bits Bits
 align bas@(Bits as) bbs@(Bits bs) =
@@ -137,6 +130,29 @@ class Ord a <= Binary a where
   leftShift :: Bit -> a -> Overflow Bit a
   rightShift :: Bit -> a -> Overflow Bit a
   toBits :: a -> Bits
+
+instance binaryInt :: Binary Int where
+  _0 = 0
+  _1 = 1
+
+  invert = Int.xor top
+
+  add' bit a b = unsafeFixedFromBits <$> add' bit (toBits a) (toBits b)
+
+  leftShift (Bit b) i = Overflow overflow res where
+    overflow = Bit $ eq 1 (Int.zshr 31 i)
+    res = Int.or rightmostBitMask (Int.shl 1 i)
+    rightmostBitMask = ifelse b 1 0
+
+  rightShift (Bit b) i = Overflow overflow res where
+    overflow = Bit $ eq 1 (Int.and 1 i)
+    res = Int.or leftmostBitMask (Int.shr 1 i)
+    leftmostBitMask = ifelse b bottom 0
+
+  toBits = f >>> Bits >>> stripLeadingZeros where
+    f 0 = [_0]
+    f n | n `mod` 2 == 1 = A.snoc (f (n `div` 2)) _1
+        | otherwise = A.snoc (f (n `div` 2)) _0
 
 instance binaryBits :: Binary Bits where
   _0 = Bits (pure _0)
@@ -193,10 +209,26 @@ diffAsBits a b = stripLeadingZeros (Bits acc) where
 class Binary a <= FitsInt a where
   toInt :: a -> Int
 
+instance intFitsInt :: FitsInt Int where
+  toInt = id
 
 class (Bounded a, Binary a) <= Fixed a where
   numBits :: Proxy a -> Int
   tryFromBits :: Bits -> Maybe a
+
+instance fixedInt :: Fixed Int where
+  numBits _ = 32
+  tryFromBits (Bits bits) = bitsToInt (A.length bits) bits where
+    bitsToInt l _ | l > 31 = Nothing
+    bitsToInt 0 _ = Just 0
+    bitsToInt _ bs = Just $ get1 $ A.foldr f (Tuple 0 1) bs
+    f b (Tuple r p) = Tuple (p * toInt b + r) (p * 2)
+
+tryToInt :: ∀ a. Binary a => a -> Maybe Int
+tryToInt binary | bits <- toBits binary = tryFromBits bits
+
+tryFromInt :: ∀ a. Fixed a => Int -> Maybe a
+tryFromInt = toBits >>> tryFromBits
 
 modAdd :: ∀ a. Fixed a => a -> a -> a
 modAdd a b = unsafeFixedFromBits result where
@@ -219,17 +251,6 @@ diffFixed a b = unsafeFixedFromBits (diffAsBits a b) -- safe, as diff is always 
 unsafeFixedFromBits :: ∀ a. Fixed a => Bits -> a
 unsafeFixedFromBits bits = fromMaybe' (\_ -> unsafeCrashWith err) (tryFromBits bits) where
   err = "Unsafe conversion of Bits to a Fixed value has failed"
-
-tryToInt :: ∀ a. Binary a => a -> Maybe Int
-tryToInt binary | (Bits bts) <- toBits binary =
-  bitsToInt (A.length bts) bts where
-    bitsToInt l _ | l > 31 = Nothing
-    bitsToInt 0 _ = Just 0
-    bitsToInt _ bits = Just $ get1 $ A.foldr f (Tuple 0 1) bits
-    f b (Tuple r p) = Tuple (p * toInt b + r) (p * 2)
-
-tryFromInt :: ∀ a. Fixed a => Int -> Maybe a
-tryFromInt = intToBits >>> tryFromBits
 
 
 instance binaryBit :: Binary Bit where
@@ -314,7 +335,7 @@ tryFromBinStringElastic =
   Str.toCharArray >>> traverse charToBit >>> map wrap >>> map fromBits
 
 fromInt :: ∀ a. Elastic a => Int -> a
-fromInt = intToBits >>> fromBits
+fromInt = toBits >>> fromBits
 
 half :: ∀ a. Elastic a => a -> a
 half = rightShift _0 >>> discardOverflow >>> stripLeadingZeros
@@ -353,19 +374,19 @@ derive newtype instance ordRadix :: Ord Radix
 
 -- | The base-2 system.
 bin :: Radix
-bin = Radix (intToBits 2)
+bin = Radix (toBits 2)
 
 -- | The base-8 system.
 oct :: Radix
-oct = Radix (intToBits 8)
+oct = Radix (toBits 8)
 
 -- | The base-10 system.
 dec :: Radix
-dec = Radix (intToBits 10)
+dec = Radix (toBits 10)
 
 -- | The base-16 system.
 hex :: Radix
-hex = Radix (intToBits 16)
+hex = Radix (toBits 16)
 
 toStringAs :: ∀ a. Binary a => Radix -> a -> String
 toStringAs (Radix r) b = Str.fromCharArray (req (toBits b) []) where
