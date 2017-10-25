@@ -34,6 +34,7 @@ module Data.Binary.Class
   , fromBits
   , extendOverflow
   , addLeadingZeros
+  , addLeadingZerosArray
   , stripLeadingZeros
   , extendAdd
   , tryFromBinStringElastic
@@ -312,13 +313,14 @@ instance elasticBits :: Elastic Bits where
 addLeadingZeros :: ∀ a. Elastic a => Int -> a -> a
 addLeadingZeros w = toBits
                 >>> unwrap
-                >>> f
+                >>> addLeadingZerosArray w
                 >>> wrap
                 >>> fromBits
-  where
-    f bits = let d = sub w (A.length bits)
-             in if d < 1 then bits
-                         else (A.replicate d _0) <> bits
+
+addLeadingZerosArray :: Int -> Array Bit -> Array Bit
+addLeadingZerosArray width bits =
+  let d = sub width (A.length bits)
+  in if d < 1 then bits else (A.replicate d _0) <> bits
 
 stripLeadingZeros :: ∀ a. Elastic a => a -> a
 stripLeadingZeros = toBits
