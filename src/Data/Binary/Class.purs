@@ -16,6 +16,9 @@ module Data.Binary.Class
   , _1
   , isOdd
   , isEven
+  , and
+  , xor
+  , or
   , invert
   , add'
   , add
@@ -134,6 +137,9 @@ align bas@(Bits as) bbs@(Bits bs) =
 class Ord a <= Binary a where
   _0 :: a
   _1 :: a
+  and :: a -> a -> a
+  xor :: a -> a -> a
+  or :: a -> a -> a
   invert :: a -> a
   add' :: Bit -> a -> a -> Overflow Bit a
   leftShift :: Bit -> a -> Overflow Bit a
@@ -143,29 +149,50 @@ class Ord a <= Binary a where
 instance binaryInt :: Binary Int where
   _0 = 0
   _1 = 1
-
-  invert = Int.xor top
-
+  and = Int.and
+  xor = Int.xor
+  or = Int.or
+  invert = xor top
   add' bit a b = unsafeFixedFromBits <$> add' bit (toBits a) (toBits b)
-
   leftShift (Bit b) i = Overflow overflow res where
     overflow = Bit $ eq 1 (Int.zshr 31 i)
     res = Int.or rightmostBitMask (Int.shl 1 i)
     rightmostBitMask = ifelse b 1 0
-
   rightShift (Bit b) i = Overflow overflow res where
     overflow = Bit $ eq 1 (Int.and 1 i)
     res = Int.or leftmostBitMask (Int.shr 1 i)
     leftmostBitMask = ifelse b bottom 0
-
   toBits = f >>> Bits >>> stripLeadingZeros where
     f 0 = [_0]
     f n | n `mod` 2 == 1 = A.snoc (f (n `div` 2)) _1
         | otherwise = A.snoc (f (n `div` 2)) _0
 
+
+instance binaryBit :: Binary Bit where
+  _0 = Bit false
+  _1 = Bit true
+  and (Bit a) (Bit b) = Bit (conj a b)
+  xor (Bit a) (Bit b) = Bit (?ab)
+  or (Bit a) (Bit b) = Bit (disj a b)
+  invert (Bit b) = Bit (not b)
+  add' (Bit false) (Bit false) (Bit false) = Overflow _0 _0
+  add' (Bit false) (Bit false) (Bit true)  = Overflow _0 _1
+  add' (Bit false) (Bit true) (Bit false)  = Overflow _0 _1
+  add' (Bit false) (Bit true) (Bit true)   = Overflow _1 _0
+  add' (Bit true) (Bit false) (Bit false)  = Overflow _0 _1
+  add' (Bit true) (Bit false) (Bit true)   = Overflow _1 _0
+  add' (Bit true) (Bit true) (Bit false)   = Overflow _1 _0
+  add' (Bit true) (Bit true) (Bit true)    = Overflow _1 _1
+  toBits = A.singleton >>> Bits
+  leftShift b a = Overflow a b
+  rightShift b a = Overflow a b
+
 instance binaryBits :: Binary Bits where
   _0 = Bits (pure _0)
   _1 = Bits (pure _1)
+  and (Bits as) (Bits bs) = Bits (A.zipWith and as bs)
+  xor (Bits as) (Bits bs) = Bits (A.zipWith xor as bs)
+  or (Bits as) (Bits bs) = Bits (A.zipWith or as bs)
   invert (Bits bits) = Bits (map invert bits)
   add' bit abits@(Bits as) bbits@(Bits bs) =
     Bits <$> A.foldr f acc pairs where
@@ -260,27 +287,6 @@ diffFixed a b = unsafeFixedFromBits (diffAsBits a b) -- safe, as diff is always 
 unsafeFixedFromBits :: ∀ a. Fixed a => Bits -> a
 unsafeFixedFromBits bits = fromMaybe' (\_ -> unsafeCrashWith err) (tryFromBits bits) where
   err = "Unsafe conversion of Bits to a Fixed value has failed"
-
-
-instance binaryBit :: Binary Bit where
-  _0 = Bit false
-  _1 = Bit true
-
-  invert (Bit b) = Bit (not b)
-
-  add' (Bit false) (Bit false) (Bit false) = Overflow _0 _0
-  add' (Bit false) (Bit false) (Bit true)  = Overflow _0 _1
-  add' (Bit false) (Bit true) (Bit false)  = Overflow _0 _1
-  add' (Bit false) (Bit true) (Bit true)   = Overflow _1 _0
-  add' (Bit true) (Bit false) (Bit false)  = Overflow _0 _1
-  add' (Bit true) (Bit false) (Bit true)   = Overflow _1 _0
-  add' (Bit true) (Bit true) (Bit false)   = Overflow _1 _0
-  add' (Bit true) (Bit true) (Bit true)    = Overflow _1 _1
-
-  toBits = A.singleton >>> Bits
-
-  leftShift b a = Overflow a b
-  rightShift b a = Overflow a b
 
 instance fixedBit :: Fixed Bit where
   numBits _ = 1
