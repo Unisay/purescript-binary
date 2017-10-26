@@ -152,7 +152,7 @@ instance binaryInt :: Binary Int where
   and = Int.and
   xor = Int.xor
   or = Int.or
-  invert = xor top
+  invert = Int.xor top
   add' bit a b = unsafeFixedFromBits <$> add' bit (toBits a) (toBits b)
   leftShift (Bit b) i = Overflow overflow res where
     overflow = Bit $ eq 1 (Int.zshr 31 i)
@@ -171,9 +171,9 @@ instance binaryInt :: Binary Int where
 instance binaryBit :: Binary Bit where
   _0 = Bit false
   _1 = Bit true
-  and (Bit a) (Bit b) = Bit (conj a b)
-  xor (Bit a) (Bit b) = Bit (?ab)
-  or (Bit a) (Bit b) = Bit (disj a b)
+  and (Bit a) (Bit b) = Bit (a && b)
+  xor (Bit a) (Bit b) = Bit ((a || b) && not (a && b))
+  or (Bit a) (Bit b) = Bit (a || b)
   invert (Bit b) = Bit (not b)
   add' (Bit false) (Bit false) (Bit false) = Overflow _0 _0
   add' (Bit false) (Bit false) (Bit true)  = Overflow _0 _1
@@ -214,7 +214,7 @@ isEven = toBits >>> unwrap >>> A.last >>> maybe true (eq _0)
 toBinString :: ∀ a. Binary a => a -> String
 toBinString = toBits
           >>> unwrap
-          >>> A.dropWhile (eq _0)
+          >>> stripLeadingZerosArray
           >>> map bitToChar
           >>> Str.fromCharArray
 
@@ -339,9 +339,14 @@ addLeadingZerosArray width bits =
 stripLeadingZeros :: ∀ a. Elastic a => a -> a
 stripLeadingZeros = toBits
                 >>> unwrap
-                >>> A.dropWhile (eq _0)
+                >>> stripLeadingZerosArray
                 >>> wrap
                 >>> fromBits
+
+stripLeadingZerosArray :: Array Bit -> Array Bit
+stripLeadingZerosArray bits =
+  let xs = A.dropWhile (eq _0) bits
+  in if A.null xs then [_0] else xs
 
 extendAdd :: ∀ a. Elastic a => a -> a -> a
 extendAdd a b = extendOverflow (add a b)

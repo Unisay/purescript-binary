@@ -3,7 +3,7 @@ module Data.Binary.Byte
   ) where
 
 
-import Data.Binary.Class (class Binary, class FitsInt, class Fixed, Bits(Bits), _0, _1, add', addLeadingZeros, invert, leftShift, rightShift, toBinString, toBits, toInt)
+import Data.Binary.Class (class Binary, class FitsInt, class Fixed, Bits(Bits), _0, _1, add', addLeadingZeros, and, invert, leftShift, or, rightShift, toBinString, toBits, toInt, xor)
 import Data.Binary.Nibble (Nibble(..))
 import Data.Binary.Overflow (Overflow(..))
 import Data.Maybe (Maybe(..))
@@ -26,18 +26,17 @@ instance boundedByte :: Bounded Byte where
 instance binaryByte :: Binary Byte where
   _0 = Byte _0 _0
   _1 = Byte _0 _1
-
+  and (Byte a b) (Byte c d) = Byte (and a c) (and b d)
+  xor (Byte a b) (Byte c d) = Byte (xor a c) (xor b d)
+  or (Byte a b) (Byte c d) = Byte (or a c) (or b d)
   invert (Byte n1 n2) = Byte (invert n1) (invert n2)
-
-  toBits (Byte h l) = toBits h <> toBits l
-
   leftShift b (Byte h l) =
     let (Overflow o l') = leftShift b l
     in flip Byte l' <$> leftShift o h
-
   rightShift b (Byte h l) =
     let (Overflow o h') = rightShift b h
     in Byte h' <$> rightShift o l
+  toBits (Byte h l) = toBits h <> toBits l
 
   -- | Unsigned binary addition
   -- | Accepts a carry-over bit from the previous addition
