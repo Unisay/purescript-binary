@@ -3,6 +3,8 @@ module Data.Binary.Class
   , bitToChar
   , charToBit
   , Bits(..)
+  , lsb
+  , msb
   , align
   , class Binary
   , class Fixed
@@ -34,7 +36,6 @@ module Data.Binary.Class
   , fromBits
   , extendOverflow
   , addLeadingZeros
-  , addLeadingZerosArray
   , stripLeadingZeros
   , extendAdd
   , tryFromBinStringElastic
@@ -109,6 +110,14 @@ instance semiringBits :: Semiring Bits where
 instance ringBits :: Ring Bits where
   sub = diffElastic
 
+-- | Least significant bit
+lsb :: Bits -> Bit
+lsb (Bits bits) = fromMaybe _0 (A.last bits)
+
+-- | most significant bit
+msb :: Bits -> Bit
+msb (Bits bits) = fromMaybe _0 (A.head bits)
+
 -- | align length by adding zeroes from the left
 align :: Bits -> Bits -> Tuple Bits Bits
 align bas@(Bits as) bbs@(Bits bs) =
@@ -120,7 +129,6 @@ align bas@(Bits as) bbs@(Bits bs) =
         lb = A.length bs
         extend :: Int -> Array Bit -> Bits
         extend d xs = Bits (A.replicate d _0 <> xs)
-
 
 
 class Ord a <= Binary a where

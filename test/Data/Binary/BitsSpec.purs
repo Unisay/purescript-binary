@@ -3,8 +3,8 @@ module Data.Binary.Bits.Spec (spec) where
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
 import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbNonNegativeInt(..))
-import Data.Binary.Class (Bit(..), Bits(..), _0, add, leftShift, rightShift, toBinString, toBits, tryToInt, addLeadingZeros, fromBits, fromInt, stripLeadingZeros, tryFromBinStringElastic)
-import Data.Binary.Overflow (Overflow(..))
+import Data.Binary.Class (Bit(..), Bits(..), _0, add, addLeadingZeros, fromBits, fromInt, leftShift, lsb, msb, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryToInt)
+import Data.Binary.Overflow (Overflow(..), overflow)
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
 import Data.String as Str
@@ -26,6 +26,8 @@ spec = suite "Bits" do
   test "addition right identity" $ quickCheck propAdditionRightIdentity
   test "left shift" $ quickCheck propLeftShift
   test "right shift" $ quickCheck propRightShift
+  test "least significant bit" $ quickCheck propLsb
+  test "most significant bit" $ quickCheck propMsb
 
 propCompare :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
 propCompare (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
@@ -89,3 +91,19 @@ propRightShift (ArbBit bit) (ArbBits bits) =
       expected = toBits bit <> toBits bits
       actual = toBits shifted <> toBits o
   in expected === actual
+
+propLsb :: ArbBits -> Result
+propLsb (ArbBits bits) =
+  expected == actual <?> "bits: " <> show bits
+                     <> ", lsb = " <> show actual
+                     <> ", expected = " <> show expected
+  where expected = overflow (rightShift _0 bits)
+        actual = lsb bits
+
+propMsb :: ArbBits -> Result
+propMsb (ArbBits bits) =
+  expected == actual <?> "bits: " <> show bits
+                     <> ", msb = " <> show actual
+                     <> ", expected = " <> show expected
+  where expected = overflow (leftShift _0 bits)
+        actual = msb bits
