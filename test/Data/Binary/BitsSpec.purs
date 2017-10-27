@@ -60,7 +60,7 @@ propBitsRoundtrip (ArbBits bs) =
 
 propStringRoundtrip :: ArbBits -> Result
 propStringRoundtrip (ArbBits bs) =
-  Just (stripLeadingZeros bs) === tryFromBinStringElastic (toBinString bs)
+  Just bs === tryFromBinStringElastic (toBinString bs)
 
 propIntRoundtrip :: ArbBits -> Result
 propIntRoundtrip (ArbBits bs@(Bits bits)) =

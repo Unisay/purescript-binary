@@ -214,7 +214,6 @@ isEven = toBits >>> unwrap >>> A.last >>> maybe true (eq _0)
 toBinString :: ∀ a. Binary a => a -> String
 toBinString = toBits
           >>> unwrap
-          >>> stripLeadingZerosArray
           >>> map bitToChar
           >>> Str.fromCharArray
 
