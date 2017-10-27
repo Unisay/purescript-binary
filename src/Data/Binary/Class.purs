@@ -5,6 +5,10 @@ module Data.Binary.Class
   , Bits(..)
   , lsb
   , msb
+  , head
+  , tail
+  , init
+  , last
   , align
   , diffBits
   , class Binary
@@ -134,6 +138,17 @@ align bas@(Bits as) bbs@(Bits bs) =
         extend :: Int -> Array Bit -> Bits
         extend d xs = Bits (A.replicate d _0 <> xs)
 
+head :: Bits -> Bit
+head (Bits bits) = fromMaybe _0 (A.head bits)
+
+tail :: Bits -> Bits
+tail (Bits bits) = Bits $ fromMaybe [_0] (A.tail bits)
+
+init :: Bits -> Bits
+init (Bits bits) = Bits $ fromMaybe [_0] (A.init bits)
+
+last :: Bits -> Bit
+last (Bits bits) = fromMaybe _0 (A.last bits)
 
 class Ord a <= Binary a where
   _0 :: a
@@ -230,14 +245,14 @@ diffBits a b | a < b = diffBits b a
 diffBits a b = Bits acc where
   f :: (Tuple Bit Bit) -> Tuple Boolean (Array Bit) -> Tuple Boolean (Array Bit)
   -- https://i.stack.imgur.com/5M40R.jpg
-  f (Tuple (Bit false) (Bit false)) (Tuple false a) = Tuple false (A.cons _0 a)
-  f (Tuple (Bit false) (Bit false)) (Tuple true  a) = Tuple true  (A.cons _1 a)
-  f (Tuple (Bit false) (Bit true) ) (Tuple false a) = Tuple true  (A.cons _1 a)
-  f (Tuple (Bit false) (Bit true) ) (Tuple true  a) = Tuple true  (A.cons _0 a)
-  f (Tuple (Bit true)  (Bit false)) (Tuple false a) = Tuple false (A.cons _1 a)
-  f (Tuple (Bit true)  (Bit false)) (Tuple true  a) = Tuple false (A.cons _0 a)
-  f (Tuple (Bit true)  (Bit true) ) (Tuple false a) = Tuple false (A.cons _0 a)
-  f (Tuple (Bit true)  (Bit true) ) (Tuple true  a) = Tuple true  (A.cons _1 a)
+  f (Tuple (Bit false) (Bit false)) (Tuple false acc) = Tuple false (A.cons _0 acc)
+  f (Tuple (Bit false) (Bit false)) (Tuple true  acc) = Tuple true  (A.cons _1 acc)
+  f (Tuple (Bit false) (Bit true) ) (Tuple false acc) = Tuple true  (A.cons _1 acc)
+  f (Tuple (Bit false) (Bit true) ) (Tuple true  acc) = Tuple true  (A.cons _0 acc)
+  f (Tuple (Bit true)  (Bit false)) (Tuple false acc) = Tuple false (A.cons _1 acc)
+  f (Tuple (Bit true)  (Bit false)) (Tuple true  acc) = Tuple false (A.cons _0 acc)
+  f (Tuple (Bit true)  (Bit true) ) (Tuple false acc) = Tuple false (A.cons _0 acc)
+  f (Tuple (Bit true)  (Bit true) ) (Tuple true  acc) = Tuple true  (A.cons _1 acc)
   pairs = uncurry A.zip $ bimap unwrap unwrap $ align a b
   (Tuple _ acc) = A.foldr f (Tuple false []) pairs
 
@@ -272,10 +287,10 @@ modAdd a b = unsafeFixedFromBits result where
   result = mkBits (add (toBits a) (toBits b))
   numValues m = _1 <> Bits (A.replicate m _0)
   mkBits (Overflow (Bit false) bits) = bits
-  mkBits res = diffBits (extendOverflow res) (numValues nBits)
+  mkBits res = tail $ diffBits (extendOverflow res) (numValues nBits)
 
 modMul :: ∀ a. Fixed a => a -> a -> a
-modMul a b = unsafeFixedFromBits rem where
+modMul a b = unsafeFixedFromBits (stripLeadingZeros rem) where
   nBits = numBits (Proxy :: Proxy a)
   mres = multiply (toBits a) (toBits b)
   numValues m = _1 <> Bits (A.replicate m _0)
