@@ -6,6 +6,7 @@ module Data.Binary.Class
   , lsb
   , msb
   , align
+  , diffBits
   , class Binary
   , class Fixed
   , diffFixed
@@ -223,10 +224,10 @@ tryFromBinString = Str.toCharArray
                >=> Bits
                >>> tryFromBits
 
-diffAsBits :: ∀ a. Binary a => a -> a -> Bits
-diffAsBits a b | a == b =  _0
-diffAsBits a b | a < b = diffAsBits b a
-diffAsBits a b = stripLeadingZeros (Bits acc) where
+diffBits :: Bits -> Bits -> Bits
+diffBits a b | a == b = _0
+diffBits a b | a < b = diffBits b a
+diffBits a b = Bits acc where
   f :: (Tuple Bit Bit) -> Tuple Boolean (Array Bit) -> Tuple Boolean (Array Bit)
   -- https://i.stack.imgur.com/5M40R.jpg
   f (Tuple (Bit false) (Bit false)) (Tuple false rs) = Tuple false (A.cons _0 rs)
@@ -237,7 +238,7 @@ diffAsBits a b = stripLeadingZeros (Bits acc) where
   f (Tuple (Bit true)  (Bit false)) (Tuple true rs)  = Tuple false (A.cons _0 rs)
   f (Tuple (Bit true)  (Bit true) ) (Tuple false rs) = Tuple false (A.cons _0 rs)
   f (Tuple (Bit true)  (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
-  pairs = uncurry A.zip $ bimap unwrap unwrap $ align (toBits a) (toBits b)
+  pairs = uncurry A.zip $ bimap unwrap unwrap $ align a b
   (Tuple _ acc) = A.foldr f (Tuple false []) pairs
 
 
@@ -271,7 +272,7 @@ modAdd a b = unsafeFixedFromBits result where
   result = mkBits (add (toBits a) (toBits b))
   numValues m = _1 <> Bits (A.replicate m _0)
   mkBits (Overflow (Bit false) bits) = bits
-  mkBits res = diffAsBits (extendOverflow res) (numValues nBits)
+  mkBits res = diffBits (extendOverflow res) (numValues nBits)
 
 modMul :: ∀ a. Fixed a => a -> a -> a
 modMul a b = unsafeFixedFromBits rem where
@@ -281,11 +282,11 @@ modMul a b = unsafeFixedFromBits rem where
   (Tuple _ rem) = divMod mres (numValues nBits)
 
 diffFixed :: ∀ a. Fixed a => a -> a -> a
-diffFixed a b = unsafeFixedFromBits (diffAsBits a b) -- safe, as diff is always less than operands
+diffFixed a b = unsafeFixedFromBits $ diffBits (toBits a) (toBits b) -- safe, as diff is always less than operands
 
 unsafeFixedFromBits :: ∀ a. Fixed a => Bits -> a
 unsafeFixedFromBits bits = fromMaybe' (\_ -> unsafeCrashWith err) (tryFromBits bits) where
-  err = "Unsafe conversion of Bits to a Fixed value has failed"
+  err = "Unsafe conversion of Bits to a Fixed value has failed: " <> show bits
 
 instance fixedBit :: Fixed Bit where
   numBits _ = 1
@@ -364,7 +365,7 @@ double :: ∀ a. Elastic a => a -> a
 double = leftShift _0 >>> extendOverflow >>> stripLeadingZeros
 
 diffElastic :: ∀ a. Elastic a => a -> a -> a
-diffElastic a b = fromBits (diffAsBits a b)
+diffElastic a b = fromBits $ diffBits (toBits a) (toBits b)
 
 divMod :: ∀ a. Elastic a => a -> a -> Tuple a a
 divMod x _ | x == _0 = Tuple _0 _0

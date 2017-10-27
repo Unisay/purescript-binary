@@ -3,7 +3,7 @@ module Data.Binary.Bits.Spec (spec) where
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
 import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbNonNegativeInt(..))
-import Data.Binary.Class (Bit(..), Bits(..), _0, add, addLeadingZeros, fromBits, fromInt, leftShift, lsb, msb, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryToInt)
+import Data.Binary.Class (Bit(..), Bits(..), _0, add, addLeadingZeros, diffBits, fromBits, fromInt, leftShift, lsb, msb, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryToInt)
 import Data.Binary.Overflow (Overflow(..), overflow)
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
@@ -28,6 +28,7 @@ spec = suite "Bits" do
   test "right shift" $ quickCheck propRightShift
   test "least significant bit" $ quickCheck propLsb
   test "most significant bit" $ quickCheck propMsb
+  test "diffBits" $ quickCheck propDiffBits
 
 propCompare :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
 propCompare (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
@@ -107,3 +108,11 @@ propMsb (ArbBits bits) =
                      <> ", expected = " <> show expected
   where expected = overflow (leftShift _0 bits)
         actual = msb bits
+
+propDiffBits :: ArbBits -> ArbBits -> Boolean
+propDiffBits (ArbBits as@(Bits abits)) (ArbBits bs@(Bits bbits)) =
+  resLen <= asLen && resLen <= bsLen where
+    (Bits res) = diffBits as bs
+    resLen = A.length res
+    asLen = A.length abits
+    bsLen = A.length bbits
