@@ -230,14 +230,14 @@ diffBits a b | a < b = diffBits b a
 diffBits a b = Bits acc where
   f :: (Tuple Bit Bit) -> Tuple Boolean (Array Bit) -> Tuple Boolean (Array Bit)
   -- https://i.stack.imgur.com/5M40R.jpg
-  f (Tuple (Bit false) (Bit false)) (Tuple false rs) = Tuple false (A.cons _0 rs)
-  f (Tuple (Bit false) (Bit false)) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
-  f (Tuple (Bit false) (Bit true) ) (Tuple false rs) = Tuple true  (A.cons _1 rs)
-  f (Tuple (Bit false) (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _0 rs)
-  f (Tuple (Bit true)  (Bit false)) (Tuple false rs) = Tuple false (A.cons _1 rs)
-  f (Tuple (Bit true)  (Bit false)) (Tuple true rs)  = Tuple false (A.cons _0 rs)
-  f (Tuple (Bit true)  (Bit true) ) (Tuple false rs) = Tuple false (A.cons _0 rs)
-  f (Tuple (Bit true)  (Bit true) ) (Tuple true rs)  = Tuple true  (A.cons _1 rs)
+  f (Tuple (Bit false) (Bit false)) (Tuple false a) = Tuple false (A.cons _0 a)
+  f (Tuple (Bit false) (Bit false)) (Tuple true  a) = Tuple true  (A.cons _1 a)
+  f (Tuple (Bit false) (Bit true) ) (Tuple false a) = Tuple true  (A.cons _1 a)
+  f (Tuple (Bit false) (Bit true) ) (Tuple true  a) = Tuple true  (A.cons _0 a)
+  f (Tuple (Bit true)  (Bit false)) (Tuple false a) = Tuple false (A.cons _1 a)
+  f (Tuple (Bit true)  (Bit false)) (Tuple true  a) = Tuple false (A.cons _0 a)
+  f (Tuple (Bit true)  (Bit true) ) (Tuple false a) = Tuple false (A.cons _0 a)
+  f (Tuple (Bit true)  (Bit true) ) (Tuple true  a) = Tuple true  (A.cons _1 a)
   pairs = uncurry A.zip $ bimap unwrap unwrap $ align a b
   (Tuple _ acc) = A.foldr f (Tuple false []) pairs
 
