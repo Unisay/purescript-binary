@@ -142,13 +142,18 @@ head :: Bits -> Bit
 head (Bits bits) = fromMaybe _0 (A.head bits)
 
 tail :: Bits -> Bits
-tail (Bits bits) = Bits $ fromMaybe [_0] (A.tail bits)
+tail (Bits bits) = defaultBits (A.tail bits)
 
 init :: Bits -> Bits
-init (Bits bits) = Bits $ fromMaybe [_0] (A.init bits)
+init (Bits bits) = defaultBits (A.init bits)
 
 last :: Bits -> Bit
 last (Bits bits) = fromMaybe _0 (A.last bits)
+
+defaultBits :: Maybe (Array Bit) -> Bits
+defaultBits (Just []) = _0
+defaultBits (Just a) = Bits a
+defaultBits Nothing = _0
 
 class Ord a <= Binary a where
   _0 :: a
