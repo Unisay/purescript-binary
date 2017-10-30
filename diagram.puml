@@ -1,0 +1,25 @@
+@startuml
+hide methods
+
+"newtype Bit" : Boolean
+"newtype Bits" .. "newtype Bit"
+"newtype Bits" : Array Bit
+"Binary a" .. "newtype Bits"
+
+"Binary a" <|-- "Elastic a"
+"Binary a" <|-- "Fixed a"
+
+"Binary a"  : toBits :: a -> Bits
+"Elastic a" : fromBits :: Bits -> a
+"Fixed a"   : tryFromBits :: Bits -> Maybe a
+"Fixed a"   : numBits :: Proxy a -> Int
+
+note bottom of "Elastic a"
+  Grows, doesn't overflow
+end note
+
+
+note bottom of "Fixed a"
+  Overflows, maintains its size
+end note
+@enduml
