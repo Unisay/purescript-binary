@@ -305,11 +305,12 @@ modAdd a b = unsafeFixedFromBits result where
   mkBits res = tail $ diffBits (extendOverflow res) (numValues nBits)
 
 modMul :: ∀ a. Fixed a => a -> a -> a
-modMul a b = unsafeFixedFromBits (stripLeadingZeros rem) where
+modMul a b = unsafeFixedFromBits result where
   nBits = numBits (Proxy :: Proxy a)
-  mres = multiply (toBits a) (toBits b)
+  rawResult = multiply (toBits a) (toBits b)
   numValues m = _1 <> Bits (A.replicate m _0)
-  (Tuple _ rem) = divMod mres (numValues nBits)
+  t@(Tuple quo rem) = divMod rawResult (numValues nBits)
+  result = if isOdd quo then tail rem else rem
 
 diffFixed :: ∀ a. Fixed a => a -> a -> a
 diffFixed a b = unsafeFixedFromBits $ diffBits (toBits a) (toBits b) -- safe, as diff is always less than operands
