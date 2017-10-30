@@ -9,6 +9,7 @@ module Data.Binary.Class
   , tail
   , init
   , last
+  , length
   , align
   , diffBits
   , class Binary
@@ -150,6 +151,9 @@ init (Bits bits) = defaultBits (A.init bits)
 last :: Bits -> Bit
 last (Bits bits) = fromMaybe _0 (A.last bits)
 
+length :: Bits -> Int
+length = unwrap >>> A.length
+
 defaultBits :: Maybe (Array Bit) -> Bits
 defaultBits (Just []) = _0
 defaultBits (Just a) = Bits a
@@ -245,7 +249,7 @@ tryFromBinString = Str.toCharArray
                >>> tryFromBits
 
 diffBits :: Bits -> Bits -> Bits
-diffBits a b | a == b = _0
+diffBits a b | a == b = Bits $ A.replicate (max (length a) (length b)) _0
 diffBits a b | a < b = diffBits b a
 diffBits a b = Bits acc where
   f :: (Tuple Bit Bit) -> Tuple Boolean (Array Bit) -> Tuple Boolean (Array Bit)

@@ -111,8 +111,7 @@ propMsb (ArbBits bits) =
 
 propDiffBits :: ArbBits -> ArbBits -> Boolean
 propDiffBits (ArbBits as@(Bits abits)) (ArbBits bs@(Bits bbits)) =
-  resLen <= asLen && resLen <= bsLen where
+  len == resLen where
     (Bits res) = diffBits as bs
     resLen = A.length res
-    asLen = A.length abits
-    bsLen = A.length bbits
+    len = max (A.length abits) (A.length bbits)
