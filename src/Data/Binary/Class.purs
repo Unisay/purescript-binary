@@ -9,6 +9,7 @@ module Data.Binary.Class
   , tail
   , init
   , last
+  , uncons
   , length
   , align
   , diffBits
@@ -69,7 +70,7 @@ import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)
 import Data.Int.Bits as Int
-import Data.Maybe (Maybe(Nothing, Just), fromMaybe, fromMaybe', maybe)
+import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.String as Str
 import Data.Traversable (traverse)
@@ -150,6 +151,11 @@ init (Bits bits) = defaultBits (A.init bits)
 
 last :: Bits -> Bit
 last (Bits bits) = fromMaybe _0 (A.last bits)
+
+uncons :: Bits -> { head :: Bit, tail :: Bits }
+uncons (Bits bits) = f (A.uncons bits) where
+  f (Just { head: h, tail: t }) = { head: h, tail: Bits t }
+  f Nothing = { head: _0, tail: _0 }
 
 length :: Bits -> Int
 length = unwrap >>> A.length
