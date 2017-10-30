@@ -9,6 +9,8 @@ module Data.Binary.Class
   , tail
   , init
   , last
+  , drop
+  , take
   , uncons
   , length
   , align
@@ -151,6 +153,16 @@ init (Bits bits) = defaultBits (A.init bits)
 
 last :: Bits -> Bit
 last (Bits bits) = fromMaybe _0 (A.last bits)
+
+drop :: Int -> Bits -> Bits
+drop n (Bits bits) =
+  let xs = A.drop n bits
+  in if A.null xs then _0 else Bits xs
+
+take :: Int -> Bits -> Bits
+take n (Bits bits) =
+  let xs = A.take n bits
+  in if A.null xs then _0 else Bits xs
 
 uncons :: Bits -> { head :: Bit, tail :: Bits }
 uncons (Bits bits) = f (A.uncons bits) where
@@ -300,16 +312,16 @@ modAdd :: ∀ a. Fixed a => a -> a -> a
 modAdd a b = unsafeFixedFromBits result where
   nBits = numBits (Proxy :: Proxy a)
   result = mkBits (add (toBits a) (toBits b))
-  numValues m = _1 <> Bits (A.replicate m _0)
+  numValues = _1 <> Bits (A.replicate nBits _0)
   mkBits (Overflow (Bit false) bits) = bits
-  mkBits res = tail $ diffBits (extendOverflow res) (numValues nBits)
+  mkBits res = tail $ diffBits (extendOverflow res) numValues
 
 modMul :: ∀ a. Fixed a => a -> a -> a
 modMul a b = unsafeFixedFromBits result where
   nBits = numBits (Proxy :: Proxy a)
   rawResult = multiply (toBits a) (toBits b)
-  numValues m = _1 <> Bits (A.replicate m _0)
-  t@(Tuple quo rem) = divMod rawResult (numValues nBits)
+  numValues = _1 <> Bits (A.replicate nBits _0)
+  t@(Tuple quo rem) = divMod rawResult numValues
   result = if isOdd quo then tail rem else rem
 
 diffFixed :: ∀ a. Fixed a => a -> a -> a
