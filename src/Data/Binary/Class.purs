@@ -71,6 +71,7 @@ import Data.Array (singleton, (!!))
 import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)
+import Data.Int (odd)
 import Data.Int.Bits as Int
 import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -205,10 +206,17 @@ instance binaryInt :: Binary Int where
     overflow = Bit $ eq 1 (Int.and 1 i)
     res = Int.or leftmostBitMask (Int.shr 1 i)
     leftmostBitMask = ifelse b bottom 0
-  toBits = f >>> Bits >>> stripLeadingZeros where
-    f 0 = [_0]
-    f n | n `mod` 2 == 1 = A.snoc (f (n `div` 2)) _1
-        | otherwise = A.snoc (f (n `div` 2)) _0
+  toBits i | i == bottom = Bits (A.cons _1 (A.replicate 31 _0))
+  toBits i =
+    if i < zero
+    then complement $ addLeadingZeros 32 $ Bits (bits (- i))
+    else Bits (bits i)
+    where
+    complement = invert >>> unsafeAdd _1
+    bits = intBits >>> A.dropWhile (eq _0)
+    intBits 0 = [_0]
+    intBits n | odd n     = A.snoc (intBits (n `div` 2)) _1
+              | otherwise = A.snoc (intBits (n `div` 2)) _0
 
 
 instance binaryBit :: Binary Bit where
