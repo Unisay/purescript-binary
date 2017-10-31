@@ -3,7 +3,7 @@ module Data.Binary.Bits.Spec (spec) where
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
 import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbNonNegativeInt(..))
-import Data.Binary.Class (Bit(..), Bits(..), _0, add, addLeadingZeros, diffBits, fromBits, fromInt, leftShift, lsb, msb, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryToInt)
+import Data.Binary (Bit(..), Bits(..), _0, add, addLeadingZeros, diffBits, fromBits, fromInt, leftShift, lsb, msb, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryToInt)
 import Data.Binary.Overflow (Overflow(..), overflow)
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
