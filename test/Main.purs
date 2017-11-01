@@ -8,7 +8,7 @@ import Test.Unit.Console (TESTOUTPUT)
 import Test.Unit.Main (runTest)
 import Prelude hiding (add)
 import Data.Binary.Bits.Spec as Bits
-import Data.Binary.Elastic.Spec as Elastic
+import Data.Binary.Int.Spec as Int
 
 main :: ∀ e. Eff ( console     :: CONSOLE
                  , testOutput  :: TESTOUTPUT
@@ -18,4 +18,4 @@ main :: ∀ e. Eff ( console     :: CONSOLE
                  ) Unit
 main = runTest do
   Bits.spec
-  Elastic.spec
+  Int.spec

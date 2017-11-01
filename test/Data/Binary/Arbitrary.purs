@@ -2,16 +2,35 @@ module Data.Binary.Arbitrary where
 
 import Prelude
 
-import Data.Binary (Bit(..), Bits(..))
+import Data.Array as A
+import Data.Binary (Bit(..), Bits(..), _0, _1)
 import Data.Int (toNumber)
+import Data.List (List(..), (:))
 import Data.Newtype (class Newtype, unwrap)
+import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
 import Test.QuickCheck (class Arbitrary, arbitrary)
-import Test.QuickCheck.Gen (Gen, sized, suchThat, vectorOf)
+import Test.QuickCheck.Gen (Gen, frequency, sized, suchThat, vectorOf)
+
+newtype ArbInt = ArbInt Int
+derive newtype instance eqArbInt :: Eq ArbInt
+instance arbitraryInt :: Arbitrary ArbInt where
+  arbitrary = ArbInt <$> frequency gens where
+    gens = Tuple 0.05 (pure 0)      :|
+           Tuple 0.05 (pure 1)      :
+           Tuple 0.05 (pure (-1))   :
+           Tuple 0.05 (pure top)    :
+           Tuple 0.05 (pure bottom) :
+           Tuple 0.75 arbitrary     :
+           Nil
 
 newtype ArbNonNegativeInt = ArbNonNegativeInt Int
 instance arbitraryNonNegativeInt :: Arbitrary ArbNonNegativeInt where
-  arbitrary = ArbNonNegativeInt <$> suchThat arbitrary (_ >= 0)
+  arbitrary = ArbNonNegativeInt <$> frequency gens where
+    gens = Tuple 0.05 (pure top)
+        :| Tuple 0.05 (pure one)
+         : Tuple 0.90 (suchThat arbitrary (_ >= 0))
+         : Nil
 
 newtype NonOverflowingMultiplicands = NonOverflowingMultiplicands (Tuple Int Int)
 instance arbitraryNonOverflowingMultiplicands :: Arbitrary NonOverflowingMultiplicands where
@@ -38,7 +57,14 @@ instance arbitraryBits :: Arbitrary ArbBits where
       arbBit = unwrap <$> (arbitrary :: Gen ArbBit)
 
 newtype ArbBits32 = ArbBits32 Bits
-derive newtype instance eqArbBits32 :: Eq ArbBits32
-derive newtype instance showArbBits32 :: Show ArbBits32
 instance arbitraryBits32 :: Arbitrary ArbBits32 where
-  arbitrary = ArbBits32 <$> Bits <$> vectorOf 32 (unwrap <$> arbitrary :: Gen ArbBit)
+  arbitrary = ArbBits32 <$> Bits <$> frequency gens where
+    gens = Tuple 0.05 (vectorOf 32 (pure _0))
+        :| Tuple 0.05 (vectorOf 32 (pure _1))
+         : Tuple 0.05 (flip A.snoc _1 <$> vectorOf 31 (pure _0))
+         : Tuple 0.05 (flip A.snoc _0 <$> vectorOf 31 (pure _1))
+         : Tuple 0.05 (A.cons _1 <$> vectorOf 31 (pure _0))
+         : Tuple 0.05 (A.cons _0 <$> vectorOf 31 (pure _1))
+         : Tuple 0.70 (vectorOf 32 arbBit)
+         : Nil
+    arbBit = unwrap <$> (arbitrary :: Gen ArbBit)

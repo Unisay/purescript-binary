@@ -37,6 +37,7 @@ module Data.Binary
   , leftShift
   , unsafeLeftShift
   , rightShift
+  , signedRightShift
   , unsafeRightShift
   , toBinString
   , tryFromBinString
@@ -106,6 +107,9 @@ bitToChar :: Bit -> Char
 bitToChar (Bit true)  = '1'
 bitToChar (Bit false) = '0'
 
+intToBit :: Int -> Bit
+intToBit 1 = _1
+intToBit _ = _0
 
 newtype Bits = Bits (Array Bit)
 derive instance newtypeBits :: Newtype Bits _
@@ -114,7 +118,12 @@ derive newtype instance showBits :: Show Bits
 derive newtype instance semigroupBits :: Semigroup Bits
 
 instance ordBits :: Ord Bits where
-  compare a b = uncurry compare $ bimap unwrap unwrap $ align a b
+  compare a b = f (isNegative a) (isNegative b) where
+    f true true = cmp
+    f false false = cmp
+    f true false = LT
+    f false true = GT
+    cmp = uncurry compare $ bimap unwrap unwrap $ align a b
 
 instance semiringBits :: Semiring Bits where
   zero = _0
@@ -125,16 +134,11 @@ instance semiringBits :: Semiring Bits where
 instance ringBits :: Ring Bits where
   sub = diffElastic
 
--- | Least significant bit
-lsb :: Bits -> Bit
-lsb (Bits bits) = fromMaybe _0 (A.last bits)
-
--- | most significant bit
-msb :: Bits -> Bit
-msb (Bits bits) = fromMaybe _0 (A.head bits)
-
 isNegative :: Bits -> Boolean
 isNegative = msb >>> eq _1
+
+nonNegative :: Bits -> Boolean
+nonNegative = not isNegative
 
 complement :: Bits -> Bits
 complement = invert >>> unsafeAdd _1
@@ -189,6 +193,10 @@ defaultBits Nothing = _0
 class Ord a <= Binary a where
   _0 :: a
   _1 :: a
+  -- | Least significant bit
+  lsb :: a -> Bit
+  -- | most significant bit
+  msb :: a -> Bit
   and :: a -> a -> a
   xor :: a -> a -> a
   or :: a -> a -> a
@@ -196,24 +204,24 @@ class Ord a <= Binary a where
   add' :: Bit -> a -> a -> Overflow Bit a
   leftShift :: Bit -> a -> Overflow Bit a
   rightShift :: Bit -> a -> Overflow Bit a
+  signedRightShift :: a -> Overflow Bit a
   toBits :: a -> Bits
 
 instance binaryInt :: Binary Int where
   _0 = 0
   _1 = 1
+  lsb i = intToBit $ Int.and i 1
+  msb i = intToBit $ Int.zshr i 31
   and = Int.and
   xor = Int.xor
   or = Int.or
   invert = Int.xor top
   add' bit a b = unsafeFixedFromBits <$> add' bit (toBits a) (toBits b)
-  leftShift (Bit b) i = Overflow overflow res where
-    overflow = Bit $ eq 1 (Int.zshr 31 i)
-    res = Int.or rightmostBitMask (Int.shl 1 i)
-    rightmostBitMask = ifelse b 1 0
-  rightShift (Bit b) i = Overflow overflow res where
-    overflow = Bit $ eq 1 (Int.and 1 i)
-    res = Int.or leftmostBitMask (Int.shr 1 i)
-    leftmostBitMask = ifelse b bottom 0
+  leftShift (Bit b) i = Overflow (msb i) res where
+    res = ifelse b 1 0 `or` Int.shl i 1
+  rightShift (Bit b) i = Overflow (lsb i) res where
+    res = ifelse b bottom 0 `or` Int.shr i 1
+  signedRightShift i = rightShift (intToBit $ Int.and bottom i) i
   toBits i | i == bottom = Bits (A.cons _1 (A.replicate 31 _0))
   toBits i =
     if i < zero
@@ -229,6 +237,8 @@ instance binaryInt :: Binary Int where
 instance binaryBit :: Binary Bit where
   _0 = Bit false
   _1 = Bit true
+  lsb = id
+  msb = id
   and (Bit a) (Bit b) = Bit (a && b)
   xor (Bit a) (Bit b) = Bit ((a || b) && not (a && b))
   or (Bit a) (Bit b) = Bit (a || b)
@@ -244,10 +254,13 @@ instance binaryBit :: Binary Bit where
   toBits = A.singleton >>> Bits
   leftShift b a = Overflow a b
   rightShift b a = Overflow a b
+  signedRightShift a = Overflow a a
 
 instance binaryBits :: Binary Bits where
   _0 = Bits (pure _0)
   _1 = Bits (pure _1)
+  lsb (Bits as) = fromMaybe _0 (A.last as)
+  msb (Bits as) = fromMaybe _0 (A.head as)
   and (Bits as) (Bits bs) = Bits (A.zipWith and as bs)
   xor (Bits as) (Bits bs) = Bits (A.zipWith xor as bs)
   or (Bits as) (Bits bs) = Bits (A.zipWith or as bs)
@@ -261,6 +274,7 @@ instance binaryBits :: Binary Bits where
     where f a (Overflow o t) = flip A.cons t <$> leftShift o a
   rightShift bit (Bits bits) = Bits <$> A.foldl f (Overflow bit []) bits
     where f (Overflow o t) a = A.snoc t <$> rightShift o a
+  signedRightShift bits = rightShift (msb bits) bits
   toBits = id
 
 isOdd :: ∀ a. Binary a => a -> Boolean
@@ -315,7 +329,7 @@ instance fixedInt :: Fixed Int where
   tryFromInt = Just
   tryFromBits bits =
     if isNegative bits
-    then map negate $ bitsToInt $ complement $ tail bits
+    then map negate $ bitsToInt $ complement $ bits
     else bitsToInt $ tail bits
     where
     bitsToInt :: Bits -> Maybe Int
@@ -359,7 +373,8 @@ instance fixedBit :: Fixed Bit where
   tryFromBits _ = Nothing
 
 instance fitsIntBit :: FitsInt Bit where
-  toInt (Bit b) = ifelse b 1 0
+  toInt (Bit true)  = 1
+  toInt (Bit false) = 0
 
 -- | Unsigned binary addition
 -- | Returns overflow bit
