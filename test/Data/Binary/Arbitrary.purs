@@ -31,9 +31,14 @@ instance arbitraryBit :: Arbitrary ArbBit where
 newtype ArbBits = ArbBits Bits
 derive newtype instance eqArbBits :: Eq ArbBits
 derive newtype instance showArbBits :: Show ArbBits
-
 instance arbitraryBits :: Arbitrary ArbBits where
   arbitrary =
     ArbBits <$> Bits <$> arbBits where
       arbBits = sized \s -> vectorOf s arbBit
       arbBit = unwrap <$> (arbitrary :: Gen ArbBit)
+
+newtype ArbBits32 = ArbBits32 Bits
+derive newtype instance eqArbBits32 :: Eq ArbBits32
+derive newtype instance showArbBits32 :: Show ArbBits32
+instance arbitraryBits32 :: Arbitrary ArbBits32 where
+  arbitrary = ArbBits32 <$> Bits <$> vectorOf 32 (unwrap <$> arbitrary :: Gen ArbBit)

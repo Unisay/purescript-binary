@@ -2,14 +2,15 @@ module Data.Binary.Bits.Spec (spec) where
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
-import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbNonNegativeInt(..))
-import Data.Binary (Bit(..), Bits(..), _0, add, addLeadingZeros, diffBits, fromBits, fromInt, leftShift, lsb, msb, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryToInt)
+import Data.Binary (Bit(Bit), Bits(Bits), _0, add, addLeadingZeros, diffBits, fromBits, fromInt, isNegative, leftShift, lsb, msb, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryFromBits, tryToInt)
+import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbBits32(..), ArbNonNegativeInt(..))
 import Data.Binary.Overflow (Overflow(..), overflow)
 import Data.Foldable (all)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), isJust)
+import Data.Ord (lessThan)
 import Data.String as Str
 import Prelude hiding (add)
-import Test.QuickCheck (Result, (<?>), (===))
+import Test.QuickCheck (Result(..), (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 
@@ -20,6 +21,8 @@ spec = suite "Bits" do
   test "stripLeadingZeros" $ quickCheck propStripLeadingZeros
   test "toBinString contains only 0 and 1" $ quickCheck propHasBinDigits
   test "toBits >>> fromBits" $ quickCheck propBitsRoundtrip
+  test "tryFromBits to Int" $ quickCheck prop32BitsToInt
+  test "tryFromBits to Int with sign" $ quickCheck prop32BitsToSignedInt
   test "tryToInt >>> fromInt" $ quickCheck propIntRoundtrip
   test "toBinString >>> fromBinString" $ quickCheck propStringRoundtrip
   test "addition left identity" $ quickCheck propAdditionLeftIdentity
@@ -63,11 +66,24 @@ propStringRoundtrip :: ArbBits -> Result
 propStringRoundtrip (ArbBits bs) =
   Just bs === tryFromBinStringElastic (toBinString bs)
 
-propIntRoundtrip :: ArbBits -> Result
-propIntRoundtrip (ArbBits bs@(Bits bits)) =
-  case tryToInt bs of
-    (Just i) -> stripLeadingZeros bs === fromInt i
-    Nothing -> A.length bits > 31 <?> "Failed to convert bytes to Int"
+prop32BitsToInt :: ArbBits32 -> Result
+prop32BitsToInt (ArbBits32 bits) = isJust (tryFromBits bits :: Maybe Int)
+  <?> "Failed to read bits " <> show bits <> " as Int"
+
+prop32BitsToSignedInt :: ArbBits32 -> Result
+prop32BitsToSignedInt (ArbBits32 bits) =
+  expected === actual
+  where
+    expected = Just (isNegative bits)
+    actual = flip lessThan zero <$> (tryFromBits bits :: Maybe Int)
+
+propIntRoundtrip :: ArbBits32 -> Result
+propIntRoundtrip (ArbBits32 bits) =
+  case tryToInt bits of
+    Just i -> bits == fromInt i
+      <?> "Failed to read bits as correct Int (" <> show i <> "). Actual bits " <> show bits <> " "
+      <> "Bits from int: " <> show ((fromInt i) :: Bits)
+    Nothing -> Failed ("Failed to read bits as Int: " <> show bits)
 
 propAdditionLeftIdentity :: ArbBits -> Result
 propAdditionLeftIdentity (ArbBits a) =
