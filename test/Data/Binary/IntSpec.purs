@@ -31,6 +31,7 @@ spec = suite "Binary Int" do
   test "tryFromBits" $ quickCheck prop32BitsToInt
   test "toBits (length)" $ quickCheck propToBitsLength
   test "toBits (sign)" $ quickCheck propToBitsSign
+  test "toBits >>> tryFromBits" $ quickCheck propBitsRoundtrip
 
 propAnd :: ArbInt -> ArbInt -> Result
 propAnd (ArbInt a) (ArbInt b) =
@@ -140,3 +141,13 @@ propToBitsSign (ArbInt int) =
   where
     expected = lessThan int zero
     actual = Bin.isNegative (Bin.toBits int)
+
+propBitsRoundtrip :: ArbInt -> Result
+propBitsRoundtrip (ArbInt int) =
+  expected == actual
+    <?> "\nExpected: " <> show expected
+    <>  "\nActual:   " <> show actual
+    <>  "\nInt:      " <> show int
+  where
+    expected = Just int
+    actual = tryFromBits (Bin.toBits int)
