@@ -146,10 +146,19 @@ propDouble (ArbInt i) =
   where maxInt = (top :: Int) / 2
         bits = fromInt i :: Bits
 
-propHalf :: ArbNonNegativeInt -> Result
-propHalf (ArbNonNegativeInt i) =
-  Just (i / 2) === tryToInt (half bits)
-  where bits = fromInt i :: Bits
+propHalf :: ArbInt -> Result
+propHalf (ArbInt int) =
+  expected == actual
+    <?> "\nExpected: " <> show expected
+    <>  "\nActual:   " <> show actual
+    <>  "\nInt:      " <> show int
+    <>  "\nBits:     " <> show bits
+    <>  "\nhalf:     " <> show halfBits
+  where
+   expected = Just (int / 2)
+   actual = tryToInt halfBits
+   halfBits = half bits
+   bits = fromInt int :: Bits
 
 propDiff :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
 propDiff (ArbNonNegativeInt a) (ArbNonNegativeInt b) =

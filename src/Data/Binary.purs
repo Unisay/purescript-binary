@@ -295,6 +295,9 @@ tryFromBinString = Str.toCharArray
                >=> Bits
                >>> tryFromBits
 
+half :: ∀ a. Binary a => a -> a
+half = signedRightShift >>> discardOverflow
+
 diffBits :: Bits -> Bits -> Bits
 diffBits a b | a == b = Bits $ A.replicate (max (length a) (length b)) _0
 diffBits a b | a < b = diffBits b a
@@ -438,11 +441,8 @@ tryFromBinStringElastic =
 fromInt :: ∀ a. Elastic a => Int -> a
 fromInt = toBits >>> fromBits
 
-half :: ∀ a. Elastic a => a -> a
-half = rightShift _0 >>> discardOverflow >>> stripLeadingZeros
-
 double :: ∀ a. Elastic a => a -> a
-double = leftShift _0 >>> extendOverflow >>> stripLeadingZeros
+double = leftShift _0 >>> extendOverflow
 
 diffElastic :: ∀ a. Elastic a => a -> a -> a
 diffElastic a b = fromBits $ diffBits (toBits a) (toBits b)
@@ -495,6 +495,8 @@ toStringAs (Radix r) b = Str.fromCharArray (req (toBits b) []) where
   req bits acc =
     let (Tuple quo rem) = bits `divMod` r
     in req quo (bitsAsChar rem <> acc)
+
+-- TODO: fromStringAs
 
 bitsAsChar :: Bits -> Array Char
 bitsAsChar bits = fromMaybe [] do
