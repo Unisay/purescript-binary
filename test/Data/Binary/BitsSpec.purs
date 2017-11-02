@@ -2,12 +2,12 @@ module Data.Binary.Bits.Spec (spec) where
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
-import Data.Binary (Bit(Bit), Bits(Bits), _0, add, addLeadingZeros, diffBits, diffElastic, divMod, double, extendAdd, fromBits, fromInt, half, isNegative, leftShift, length, lsb, msb, multiply, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryFromBits, tryToInt)
+import Data.Binary (Bit(Bit), Bits(Bits), _0, add, addLeadingZeros, diffBits, diffElastic, divMod, double, extendAdd, fromBits, fromInt, half, leftShift, length, lsb, msb, multiply, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryToInt)
 import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbBits32(..), ArbInt(..), ArbNonNegativeInt(..), NonOverflowingMultiplicands(..))
 import Data.Binary.Overflow (Overflow(..), overflow)
 import Data.Foldable (all)
-import Data.Maybe (Maybe(..), isJust)
-import Data.Ord (abs, lessThan)
+import Data.Maybe (Maybe(Just, Nothing))
+import Data.Ord (abs)
 import Data.String as Str
 import Data.Tuple (Tuple(..))
 import Prelude hiding (add)

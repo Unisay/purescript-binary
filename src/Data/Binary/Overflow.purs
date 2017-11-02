@@ -2,9 +2,12 @@ module Data.Binary.Overflow
   ( Overflow(..)
   , overflow
   , discardOverflow
+  , asTuple
   ) where
 
 import Prelude
+
+import Data.Tuple (Tuple(..))
 
 data Overflow b a = Overflow b a
 
@@ -21,3 +24,6 @@ overflow (Overflow b _) = b
 
 discardOverflow :: ∀ b a . Overflow b a -> a
 discardOverflow (Overflow _ a) = a
+
+asTuple :: ∀ b a . Overflow b a -> Tuple b a
+asTuple (Overflow b a) = Tuple b a

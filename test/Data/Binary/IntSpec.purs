@@ -6,13 +6,13 @@ import Data.Array (reverse, snoc, (:))
 import Data.Binary (Bit(Bit), isNegative, tryFromBits)
 import Data.Binary as Bin
 import Data.Binary.Arbitrary (ArbBit(..), ArbBits32(..), ArbInt(ArbInt))
-import Data.Binary.Overflow (Overflow(Overflow))
+import Data.Binary.Overflow (asTuple)
 import Data.Int.Bits as Int
 import Data.List.Lazy (iterate, take, toUnfoldable)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Data.Ord (lessThan)
-import Data.Tuple (Tuple(..), fst, uncurry)
+import Data.Tuple (Tuple(..), fst, snd, uncurry)
 import Prelude hiding (add)
 import Test.QuickCheck (Result, (<?>))
 import Test.Unit (TestSuite, suite, test)
@@ -27,7 +27,10 @@ spec = suite "Binary Int" do
   test "add" $ quickCheck propAdd
   test "leftShift" $ quickCheck propLeftShift
   test "rightShift" $ quickCheck propRightShift
+  test "signedRightShift" $ quickCheck propSignedRightShift
   test "tryFromBits" $ quickCheck prop32BitsToInt
+  test "toBits (length)" $ quickCheck propToBitsLength
+  test "toBits (sign)" $ quickCheck propToBitsSign
 
 propAnd :: ArbInt -> ArbInt -> Result
 propAnd (ArbInt a) (ArbInt b) =
@@ -80,7 +83,7 @@ propLeftShift (ArbBit bit) (ArbInt int) =
   where
     expected = bit : unwrap (Bin.toBits int)
     actual = toUnfoldable (take 33 $ map fst results)
-    results = iterate (uncurry Bin.leftShift <#> \(Overflow a b) -> Tuple a b) (Tuple bit int)
+    results = iterate (uncurry Bin.leftShift >>> asTuple) (Tuple bit int)
 
 propRightShift :: ArbBit -> ArbInt -> Result
 propRightShift (ArbBit bit) (ArbInt int) =
@@ -91,9 +94,19 @@ propRightShift (ArbBit bit) (ArbInt int) =
   where
     expected = unwrap (Bin.toBits int) `snoc` bit
     actual = reverse $ toUnfoldable (take 33 $ map fst results)
-    results = iterate (uncurry Bin.rightShift <#> \(Overflow a b) -> Tuple a b) (Tuple bit int)
+    results = iterate (uncurry Bin.rightShift >>> asTuple) (Tuple bit int)
 
--- TODO
+propSignedRightShift :: ArbBit -> ArbInt -> Result
+propSignedRightShift (ArbBit bit) (ArbInt int) =
+  expected == actual
+    <?> "\nExpected: " <> show expected
+    <>  "\nActual:   " <> show actual
+    <>  "\nInt:      " <> show int
+  where
+    expected = unwrap (Bin.toBits int) `snoc` bit
+    actual = reverse $ toUnfoldable (take 33 $ map fst results)
+    results = iterate f (Tuple bit int)
+    f = snd >>> Bin.signedRightShift >>> asTuple
 
 prop32BitsToInt :: ArbBits32 -> Result
 prop32BitsToInt (ArbBits32 bits) =
@@ -107,3 +120,23 @@ prop32BitsToInt (ArbBits32 bits) =
     actual = flip lessThan zero <$> result
     result :: Maybe Int
     result = tryFromBits bits
+
+propToBitsLength :: ArbInt -> Result
+propToBitsLength (ArbInt int) =
+  expected == actual
+    <?> "\nExpected: " <> show expected
+    <>  "\nActual:   " <> show actual
+    <>  "\nInt:      " <> show int
+  where
+    expected = 32
+    actual = Bin.length (Bin.toBits int)
+
+propToBitsSign :: ArbInt -> Result
+propToBitsSign (ArbInt int) =
+  expected == actual
+    <?> "\nExpected: " <> show expected
+    <>  "\nActual:   " <> show actual
+    <>  "\nInt:      " <> show int
+  where
+    expected = lessThan int zero
+    actual = Bin.isNegative (Bin.toBits int)
