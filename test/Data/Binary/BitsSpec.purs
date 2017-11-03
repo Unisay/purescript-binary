@@ -1,6 +1,5 @@
 module Data.Binary.Bits.Spec (spec) where
 
-import Conditional (ifelse)
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
 import Data.Binary (Bit(Bit), Bits(Bits), _0, add, addLeadingZeros, diffBits, diffElastic, divMod, double, extendAdd, fromBits, fromInt, half, leftShift, length, lsb, msb, multiply, rightShift, stripLeadingZeros, toBinString, toBits, tryFromBinStringElastic, tryToInt)
@@ -8,7 +7,7 @@ import Data.Binary.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbBits32(..), A
 import Data.Binary.Overflow (Overflow(..), overflow)
 import Data.Foldable (all)
 import Data.Maybe (Maybe(Just, Nothing))
-import Data.Ord (abs, lessThan, lessThanOrEq)
+import Data.Ord (abs)
 import Data.String as Str
 import Data.Tuple (Tuple(..))
 import Prelude hiding (add)
@@ -149,16 +148,13 @@ propDouble (ArbInt i) =
 
 propHalf :: ArbInt -> Result
 propHalf (ArbInt int) =
-  -- | https://en.wikipedia.org/wiki/Arithmetic_shift#Non-equivalence_of_arithmetic_right_shift_and_division
-  lessThanOrEq actualDelta expectedDelta
+  expected == actual
     <?> "\nExpected: " <> show expected
     <>  "\nActual:   " <> show actual
     <>  "\nInt:      " <> show int
     <>  "\nBits:     " <> show bits
     <>  "\nhalf:     " <> show halfBits
   where
-   expectedDelta = Just (ifelse (lessThan int zero) 1 0)
-   actualDelta = abs <$> (sub <$> expected <*> actual)
    expected = Just (int / 2)
    actual = tryToInt halfBits
    halfBits = half bits

@@ -76,7 +76,7 @@ import Data.Bifunctor (bimap)
 import Data.Binary.Overflow (Overflow(..), discardOverflow)
 import Data.Int (odd)
 import Data.Int.Bits as Int
-import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
+import Data.Maybe (Maybe(Nothing, Just), fromMaybe, fromMaybe')
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.String as Str
 import Data.Traversable (traverse)
@@ -133,12 +133,6 @@ instance semiringBits :: Semiring Bits where
 
 instance ringBits :: Ring Bits where
   sub = diffElastic
-
-isNegative :: Bits -> Boolean
-isNegative = msb >>> eq _1
-
-nonNegative :: Bits -> Boolean
-nonNegative = not isNegative
 
 complement :: Bits -> Bits
 complement = invert >>> unsafeAdd _1
@@ -277,11 +271,17 @@ instance binaryBits :: Binary Bits where
   signedRightShift bits = rightShift (msb bits) bits
   toBits = id
 
+isNegative :: ∀ a. Binary a => a -> Boolean
+isNegative = msb >>> eq _1
+
+nonNegative :: ∀ a. Binary a => a -> Boolean
+nonNegative = not isNegative
+
 isOdd :: ∀ a. Binary a => a -> Boolean
-isOdd = toBits >>> unwrap >>> A.last >>> maybe false (eq _1)
+isOdd = lsb >>> eq _1
 
 isEven :: ∀ a. Binary a => a -> Boolean
-isEven = toBits >>> unwrap >>> A.last >>> maybe true (eq _0)
+isEven = lsb >>> eq _0
 
 toBinString :: ∀ a. Binary a => a -> String
 toBinString = toBits
@@ -296,7 +296,9 @@ tryFromBinString = Str.toCharArray
                >>> tryFromBits
 
 half :: ∀ a. Binary a => a -> a
-half = signedRightShift >>> discardOverflow
+-- | https://en.wikipedia.org/wiki/Arithmetic_shift#Non-equivalence_of_arithmetic_right_shift_and_division
+half a | isNegative a && isOdd a = half (unsafeAdd a _1)
+half a= signedRightShift a # discardOverflow
 
 diffBits :: Bits -> Bits -> Bits
 diffBits a b | a == b = Bits $ A.replicate (max (length a) (length b)) _0
