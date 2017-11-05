@@ -4,11 +4,11 @@ import Control.Monad.Aff.AVar (AVAR)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE)
 import Control.Monad.Eff.Random (RANDOM)
+import Data.Binary.Bits.Spec as Bits
+import Data.Binary.UnsignedInt.Spec as UnsignedInt
+import Prelude hiding (add)
 import Test.Unit.Console (TESTOUTPUT)
 import Test.Unit.Main (runTest)
-import Prelude hiding (add)
-import Data.Binary.Bits.Spec as Bits
-import Data.Binary.Int.Spec as Int
 
 main :: ∀ e. Eff ( console     :: CONSOLE
                  , testOutput  :: TESTOUTPUT
@@ -18,4 +18,4 @@ main :: ∀ e. Eff ( console     :: CONSOLE
                  ) Unit
 main = runTest do
   Bits.spec
-  Int.spec
+  UnsignedInt.spec

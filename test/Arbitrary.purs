@@ -1,16 +1,22 @@
-module Data.Binary.Arbitrary where
+module Test.Arbitrary where
 
 import Prelude
 
 import Data.Array as A
 import Data.Binary (Bit(..), Bits(..), _0, _1)
+import Data.Binary.UnsignedInt (UnsignedInt, fromInt)
 import Data.Int (toNumber)
 import Data.List (List(..), (:))
 import Data.Newtype (class Newtype, unwrap)
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
+import Data.Typelevel.Num (D31, d31)
 import Test.QuickCheck (class Arbitrary, arbitrary)
-import Test.QuickCheck.Gen (Gen, frequency, sized, suchThat, vectorOf)
+import Test.QuickCheck.Gen (Gen, chooseInt, frequency, sized, suchThat, vectorOf)
+
+newtype ArbInt4 = ArbInt4 Int
+instance arbitraryInt4 :: Arbitrary ArbInt4 where
+  arbitrary = ArbInt4 <$> chooseInt (-128) 127
 
 newtype ArbInt = ArbInt Int
 derive newtype instance eqArbInt :: Eq ArbInt
@@ -31,6 +37,13 @@ instance arbitraryNonNegativeInt :: Arbitrary ArbNonNegativeInt where
         :| Tuple 0.05 (pure one)
          : Tuple 0.90 (suchThat arbitrary (_ >= 0))
          : Nil
+
+newtype ArbUnsignedInt31 = ArbUnsignedInt31 (UnsignedInt D31)
+derive instance newtypeArbUnsignedInt31 :: Newtype ArbUnsignedInt31 _
+instance arbitraryUnsignedInt31 :: Arbitrary ArbUnsignedInt31 where
+  arbitrary = ArbUnsignedInt31 <$> do
+    (ArbNonNegativeInt a) <- arbitrary
+    pure (fromInt d31 a)
 
 newtype NonOverflowingMultiplicands = NonOverflowingMultiplicands (Tuple Int Int)
 instance arbitraryNonOverflowingMultiplicands :: Arbitrary NonOverflowingMultiplicands where

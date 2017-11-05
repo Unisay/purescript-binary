@@ -1,29 +1,35 @@
 module Data.Binary.Overflow
   ( Overflow(..)
-  , overflow
+  , overflowBit
+  , makeOverflow
   , discardOverflow
-  , asTuple
   ) where
+
 
 import Prelude
 
-import Data.Tuple (Tuple(..))
+import Data.Binary.Bit (Bit(..))
 
-data Overflow b a = Overflow b a
+data Overflow a = Overflow a | NoOverflow a
 
-derive instance eqOverflow :: (Eq b, Eq a) => Eq (Overflow b a)
+derive instance eqOverflow :: Eq a => Eq (Overflow a)
 
-instance showOverflow :: (Show b, Show a) => Show (Overflow b a) where
-  show (Overflow b a) = show a <> " with " <> show b <> " overflow"
+instance showOverflow :: Show a => Show (Overflow a) where
+  show (Overflow a) = show a <> " with overflow"
+  show (NoOverflow a) = show a <> " without overflow"
 
-instance functorOverflow :: Functor (Overflow b) where
-  map f (Overflow o a) = Overflow o (f a)
+instance functorOverflow :: Functor Overflow where
+  map f (Overflow a) = Overflow (f a)
+  map f (NoOverflow a) = NoOverflow (f a)
 
-overflow :: ∀ b a . Overflow b a -> b
-overflow (Overflow b _) = b
+overflowBit :: ∀ a . Overflow a -> Bit
+overflowBit (Overflow _)   = Bit true
+overflowBit (NoOverflow _) = Bit false
 
-discardOverflow :: ∀ b a . Overflow b a -> a
-discardOverflow (Overflow _ a) = a
+makeOverflow :: ∀ a . Bit -> a -> Overflow a
+makeOverflow (Bit true) a = Overflow a
+makeOverflow (Bit false) a = NoOverflow a
 
-asTuple :: ∀ b a . Overflow b a -> Tuple b a
-asTuple (Overflow b a) = Tuple b a
+discardOverflow :: ∀ a . Overflow a -> a
+discardOverflow (Overflow a) = a
+discardOverflow (NoOverflow a) = a
