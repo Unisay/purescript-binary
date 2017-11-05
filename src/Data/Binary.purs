@@ -9,6 +9,7 @@ module Data.Binary
   , _1
   , isOdd
   , isEven
+  , isZero
   , and
   , xor
   , or
@@ -16,7 +17,6 @@ module Data.Binary
   , leftShift
   , unsafeLeftShift
   , rightShift
-  , signedRightShift
   , unsafeRightShift
   , toBinString
   , tryFromBinString
@@ -25,7 +25,6 @@ module Data.Binary
   , class Elastic
   , fromBits
   , unsafeFromBits
-  , extendOverflow
   , addLeadingBit
   , addLeadingZeros
   , stripLeadingZeros
@@ -43,7 +42,6 @@ import Data.Binary.Bit (Bit(..), bitToChar, charToBit)
 import Data.Binary.Bits as Bits
 import Data.Binary.Bits (Bits(..))
 import Data.Binary.Overflow as Overflow
-import Data.Binary.Overflow (Overflow(..))
 import Data.HeytingAlgebra as HA
 import Data.Maybe (Maybe(Nothing, Just), fromMaybe, fromMaybe')
 import Data.Newtype (unwrap, wrap)
@@ -69,7 +67,6 @@ class  Binary a where
   -- subtract :: a -> a -> a
   leftShift :: Bit -> a -> Tuple Bit a
   rightShift :: Bit -> a -> Tuple Bit a
-  signedRightShift :: a -> Tuple Bit a
   toBits :: a -> Bits
   tryFromBits :: Bits -> Maybe a
 
@@ -105,7 +102,6 @@ instance binaryBit :: Binary Bit where
   not (Bit b) = Bit (HA.not b)
   leftShift b a = Tuple a b
   rightShift b a = Tuple a b
-  signedRightShift a = Tuple a a
   toBits = A.singleton >>> Bits
   tryFromBits (Bits [b]) = Just b
   tryFromBits _ = Nothing
@@ -123,7 +119,6 @@ instance binaryBits :: Binary Bits where
     where f a (Tuple o t) = flip A.cons t <$> leftShift o a
   rightShift bit (Bits bits) = Bits <$> A.foldl f (Tuple bit []) bits
     where f (Tuple o t) a = A.snoc t <$> rightShift o a
-  signedRightShift bits = rightShift (msb bits) bits
   toBits = id
   tryFromBits = Just <<< fromBits
 
@@ -132,6 +127,9 @@ isOdd = lsb >>> eq _1
 
 isEven :: ∀ a. Binary a => a -> Boolean
 isEven = lsb >>> eq _0
+
+isZero :: ∀ a. Binary a => a -> Boolean
+isZero = toBits >>> unwrap >>> A.dropWhile (eq _0) >>> A.null
 
 toBinString :: ∀ a. Binary a => a -> String
 toBinString = toBits
@@ -158,13 +156,10 @@ unsafeLeftShift a = snd (leftShift _0 a)
 
 class Binary a <= Elastic a where
   fromBits :: Bits -> a
-  extendOverflow :: Overflow a -> a
 
 instance elasticBits :: Elastic Bits where
   fromBits (Bits []) = _0
   fromBits bs = bs
-  extendOverflow (NoOverflow bits) = bits
-  extendOverflow (Overflow (Bits bits)) = Bits $ A.cons _1 bits
 
 addLeadingZeros :: ∀ a. Elastic a => Int -> a -> a
 addLeadingZeros w = toBits

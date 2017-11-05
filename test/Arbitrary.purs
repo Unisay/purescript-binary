@@ -4,13 +4,16 @@ import Prelude
 
 import Data.Array as A
 import Data.Binary (Bit(..), Bits(..), _0, _1)
-import Data.Binary.UnsignedInt (UnsignedInt, fromInt)
+import Data.Binary.SignedInt as SI
+import Data.Binary.SignedInt (SignedInt)
+import Data.Binary.UnsignedInt as UI
+import Data.Binary.UnsignedInt (UnsignedInt)
 import Data.Int (toNumber)
 import Data.List (List(..), (:))
 import Data.Newtype (class Newtype, unwrap)
 import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
-import Data.Typelevel.Num (D31, d31)
+import Data.Typelevel.Num (D31, D32, d31, d32)
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Test.QuickCheck.Gen (Gen, chooseInt, frequency, sized, suchThat, vectorOf)
 
@@ -43,7 +46,12 @@ derive instance newtypeArbUnsignedInt31 :: Newtype ArbUnsignedInt31 _
 instance arbitraryUnsignedInt31 :: Arbitrary ArbUnsignedInt31 where
   arbitrary = ArbUnsignedInt31 <$> do
     (ArbNonNegativeInt a) <- arbitrary
-    pure (fromInt d31 a)
+    pure (UI.fromInt d31 a)
+
+newtype ArbSignedInt32 = ArbSignedInt32 (SignedInt D32)
+derive instance newtypeArbSignedInt32 :: Newtype ArbSignedInt32 _
+instance arbitrarySignedInt32 :: Arbitrary ArbSignedInt32 where
+  arbitrary = ArbSignedInt32 <$> SI.fromInt d32 <$> arbitrary
 
 newtype NonOverflowingMultiplicands = NonOverflowingMultiplicands (Tuple Int Int)
 instance arbitraryNonOverflowingMultiplicands :: Arbitrary NonOverflowingMultiplicands where
