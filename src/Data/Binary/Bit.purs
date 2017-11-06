@@ -4,6 +4,8 @@ module Data.Binary.Bit
   , charToBit
   , bitToInt
   , intToBit
+  , _0
+  , _1
   ) where
 
 import Prelude
@@ -24,9 +26,15 @@ derive newtype instance boundedBit :: Bounded Bit
 instance showBit :: Show Bit where
   show = bitToChar >>> A.singleton >>> Str.fromCharArray
 
+_0 :: Bit
+_0 = Bit false
+
+_1 :: Bit
+_1 = Bit true
+
 charToBit :: Char -> Maybe Bit
-charToBit '1' = Just (Bit true)
-charToBit '0' = Just (Bit false)
+charToBit '1' = Just _1
+charToBit '0' = Just _0
 charToBit _   = Nothing
 
 bitToChar :: Bit -> Char
@@ -34,8 +42,8 @@ bitToChar (Bit true)  = '1'
 bitToChar (Bit false) = '0'
 
 intToBit :: Int -> Bit
-intToBit 1 = (Bit true)
-intToBit _ = (Bit false)
+intToBit 1 = _1
+intToBit _ = _0
 
 bitToInt :: Bit -> Int
 bitToInt (Bit true)  = 1
