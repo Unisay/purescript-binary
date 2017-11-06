@@ -33,8 +33,7 @@ spec = suite "UnsignedInt" do
   test "multiplication" $ quickCheck propMultiplication
 
 
-propFromInt :: ∀ b . Pos b => GtEq b D31 =>
-               b -> ArbNonNegativeInt -> Result
+propFromInt :: ∀ b . Pos b => GtEq b D31 => b -> ArbNonNegativeInt -> Result
 propFromInt b (ArbNonNegativeInt i) =
   expected === actual where
     expected = Int.toStringAs Int.binary i

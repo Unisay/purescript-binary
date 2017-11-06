@@ -9,13 +9,16 @@ module Data.Binary.SignedInt
 
 import Prelude
 
+import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary (class Binary, Bit, Bits(Bits), Overflow(NoOverflow), _0, _1)
 import Data.Binary as Bin
+import Data.Binary.BaseN (class BaseN, Radix(..), bin, toBase, unsafeBitsAsChars)
 import Data.Maybe (Maybe(Nothing, Just))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Ord (abs)
+import Data.String as Str
 import Data.Tuple (Tuple(..), snd, uncurry)
 import Data.Typelevel.Num (class GtEq, class LtEq, type (:*), D1, D16, D2, D32, D5, D6, D64, D8)
 import Data.Typelevel.Num as Nat
@@ -49,8 +52,8 @@ instance ordSignedInt :: Pos b => Ord (SignedInt b) where
       cmp = uncurry compare $ bimap unwrap unwrap $ Bin.align as bs
 
 instance showSignedInt :: Pos b => Show (SignedInt b) where
-  show (SignedInt bits) =
-    "SignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> Bin.toBinString bits
+  show si@(SignedInt bits) =
+    "SignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> toBase bin si
 
 flipSign :: ∀ b. Pos b => SignedInt b -> SignedInt b
 flipSign (SignedInt bits) =
@@ -59,7 +62,7 @@ flipSign (SignedInt bits) =
   in SignedInt bs
 
 unsafeIncrement :: Bits -> Bits
-unsafeIncrement = Bin.discardOverflow <<< Bin.addBits _1 _0
+unsafeIncrement = Bin.discardOverflow <<< Bin.addBits _1 Bin.zero
 
 complementBits :: Bits -> Bits
 complementBits = Bin.not >>> unsafeIncrement
@@ -92,8 +95,6 @@ isNegative :: ∀ b . SignedInt b -> Boolean
 isNegative (SignedInt bits) = Bin.head bits == _1
 
 instance binarySignedInt :: Pos b => Binary (SignedInt b) where
-  _0 = SignedInt _0
-  _1 = SignedInt _1
   msb (SignedInt bits) = Bin.msb bits
   lsb (SignedInt bits) = Bin.lsb bits
   and (SignedInt as) (SignedInt bs) = SignedInt (Bin.and as bs)
@@ -121,15 +122,15 @@ signExtend width (Bits bits) =
   in Bits if d < 1 then bits else (A.replicate d _1) <> bits
 
 instance semiringSignedInt :: Pos b => Semiring (SignedInt b) where
-  zero = _0
+  zero = SignedInt Bin.zero
   add (SignedInt as) (SignedInt bs) = Bin.unsafeFromBits result where
     nBits = Nat.toInt (undefined :: b)
     result = wrapBitsOverflow nBits (Bin.addBits _0 as bs)
     wrapBitsOverflow _ (NoOverflow bits) = bits
     wrapBitsOverflow n res =
-      let numValues = _1 <> Bits (A.replicate n _0)
+      let numValues = Bits (_1 : A.replicate n _0)
       in Bin.tail $ Bin.subtractBits (Bin.extendOverflow res) numValues
-  one = _1
+  one = SignedInt Bin.one
   mul (SignedInt as) (SignedInt bs) = SignedInt (resize prod) where
     resize xs | prodLen < len = Bin.addLeadingZeros len xs
     resize xs | prodLen > len = Bin.drop (prodLen - len) xs
@@ -152,8 +153,8 @@ half :: Bits -> Bits
 half = signedRightShift >>> snd
 
 mulBits :: Bits -> Bits -> Bits
-mulBits x _ | Bin.isZero x = _0
-mulBits _ y | Bin.isZero y = _0
+mulBits x _ | Bin.isZero x = Bin.zero
+mulBits _ y | Bin.isZero y = Bin.zero
 mulBits x y =
   let z = mulBits x (half y)
   in if Bin.isEven y then double z else Bin.addBits' _0 x (double z)
@@ -161,3 +162,25 @@ mulBits x y =
 -- instance baseNSignedInt :: Pos b => BaseN (SignedInt b) where
 --   toBase r s | isNegative s = "-" <> toBase r (negate s)
 --   toBase r (SignedInt (Bits bits)) = toStringAs r (Bits $ fromMaybe [_0] (A.tail bits))
+
+
+divMod :: Bits -> Bits -> Tuple Bits Bits
+divMod x _ | Bin.isZero x = Tuple Bin.zero Bin.zero
+divMod x y =
+  let inc a = Bin.addBits' _0 a Bin.one
+      t = divMod (half x) y
+      (Tuple q r) = bimap double double t
+      r' = if Bin.isOdd x then inc r else r
+  in if (SignedInt r' :: SignedInt D32) >= SignedInt y
+     then Tuple (inc q) (r' `Bin.subtractBits` y)
+     else Tuple q r'
+
+instance baseNSignedInt :: Pos a => BaseN (SignedInt a) where
+  toBase (Radix r) (SignedInt bs) = Str.fromCharArray (req bs []) where
+    req bits acc | (SignedInt bits :: SignedInt a) < SignedInt r =
+      unsafeBitsAsChars bits <> acc
+    req bits acc =
+      let (Tuple quo rem) = bits `divMod` r
+      in req quo (unsafeBitsAsChars rem <> acc)
+
+  -- TODO: fromStringAs

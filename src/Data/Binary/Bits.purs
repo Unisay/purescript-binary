@@ -1,5 +1,7 @@
 module Data.Binary.Bits
   ( Bits(..)
+  , zero
+  , one
   , head
   , tail
   , init
@@ -18,32 +20,22 @@ module Data.Binary.Bits
   , unsafeBitsToInt
   ) where
 
-import Prelude
-
 import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary.Bit (Bit(..), bitToInt)
+import Data.Binary.Bit (Bit(..), _0, _1, bitToInt)
 import Data.Binary.Overflow (Overflow(..), discardOverflow, makeOverflow, overflowBit)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple (Tuple(..), fst, uncurry)
+import Prelude hiding (zero)
 
 newtype Bits = Bits (Array Bit)
 derive instance newtypeBits :: Newtype Bits _
 derive newtype instance eqBits :: Eq Bits
 derive newtype instance showBits :: Show Bits
 derive newtype instance semigroupBits :: Semigroup Bits
-
--- instance semiringBits :: Semiring Bits where
---   zero = _0
---   add = extendAdd
---   one = _1
---   mul = multiply
-
--- instance ringBits :: Ring Bits where
---   sub = subtractElastic
 
 -- | align length by adding zeroes from the left
 align :: Bits -> Bits -> Tuple Bits Bits
@@ -57,14 +49,11 @@ align bas@(Bits as) bbs@(Bits bs) =
         extend :: Int -> Array Bit -> Bits
         extend d xs = Bits (A.replicate d (Bit false) <> xs)
 
-_0 :: Bit
-_0  = Bit false
+zero :: Bits
+zero = Bits [_0]
 
-_1 :: Bit
-_1  = Bit true
-
-empty :: Bits
-empty = Bits [_0]
+one :: Bits
+one = Bits [_1]
 
 head :: Bits -> Bit
 head (Bits bits) = fromMaybe _0 (A.head bits)
@@ -81,25 +70,25 @@ last (Bits bits) = fromMaybe _0 (A.last bits)
 drop :: Int -> Bits -> Bits
 drop n (Bits bits) =
   let xs = A.drop n bits
-  in if A.null xs then empty else Bits xs
+  in if A.null xs then zero else Bits xs
 
 take :: Int -> Bits -> Bits
 take n (Bits bits) =
   let xs = A.take n bits
-  in if A.null xs then empty else Bits xs
+  in if A.null xs then zero else Bits xs
 
 uncons :: Bits -> { head :: Bit, tail :: Bits }
 uncons (Bits bits) = f (A.uncons bits) where
   f (Just { head: h, tail: t }) = { head: h, tail: Bits t }
-  f Nothing = { head: _0, tail: empty }
+  f Nothing = { head: _0, tail: zero }
 
 length :: Bits -> Int
 length = unwrap >>> A.length
 
 defaultBits :: Maybe (Array Bit) -> Bits
-defaultBits (Just []) = empty
+defaultBits (Just []) = zero
 defaultBits (Just a) = Bits a
-defaultBits Nothing = empty
+defaultBits Nothing = zero
 
 addBit :: Bit -> Bit -> Bit -> Overflow Bit
 addBit (Bit false) (Bit false) (Bit false) = NoOverflow _0
