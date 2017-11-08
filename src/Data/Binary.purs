@@ -45,7 +45,7 @@ import Data.Tuple (Tuple(Tuple), snd)
 import Partial.Unsafe (unsafeCrashWith)
 
 
-class  Binary a where
+class Binary a where
   -- | Least significant bit
   lsb :: a -> Bit
   -- | most significant bit

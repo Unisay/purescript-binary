@@ -6,6 +6,8 @@ module Data.Binary.SignedInt
   , complement
   , flipSign
   , toNumberAs
+  , half -- TODO
+  , mulBits -- TODO
   ) where
 
 import Prelude
@@ -13,7 +15,7 @@ import Prelude
 import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary (class Binary, Bit, Bits(Bits), Overflow(NoOverflow), _0, _1)
+import Data.Binary (class Binary, Bit, Bits(Bits), Overflow(NoOverflow), _0, _1, discardOverflow)
 import Data.Binary as Bin
 import Data.Binary.BaseN (class BaseN, Radix(Radix), toStringAs, unsafeBitsAsChars)
 import Data.Maybe (Maybe(Nothing, Just))
@@ -41,7 +43,7 @@ derive instance newtypeSignedInt :: Newtype (SignedInt b) _
 instance eqSignedInt :: Eq (SignedInt b) where
   eq (SignedInt bits) (SignedInt bits') = eq bits bits'
 
-instance ordSignedInt :: Ord (SignedInt b) where
+instance ordSignedInt :: Pos b => Ord (SignedInt b) where
   compare a b | isNegative a && not (isNegative b) = LT
   compare a b | not (isNegative a) && isNegative b = GT
   compare a@(SignedInt as) b@(SignedInt bs) =
@@ -56,7 +58,7 @@ instance showSignedInt :: Pos b => Show (SignedInt b) where
   show (SignedInt bits) =
     "SignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> Bin.toString bits
 
-flipSign :: ∀ b. Pos b => SignedInt b -> SignedInt b
+flipSign :: ∀ b. SignedInt b -> SignedInt b
 flipSign (SignedInt bits) =
   let { head: h, tail: (Bits t) } = Bin.uncons bits
       bs = Bits $ A.cons (Bin.not h) t
@@ -92,8 +94,8 @@ toInt si@(SignedInt bits) =
   else bitsToInt bits
   where bitsToInt = Bin.tail >>> Bin.unsafeBitsToInt
 
-isNegative :: ∀ b . SignedInt b -> Boolean
-isNegative (SignedInt bits) = Bin.head bits == _1
+isNegative :: ∀ a . Binary a => a -> Boolean
+isNegative = Bin.msb >>> eq _1
 
 instance binarySignedInt :: Pos b => Binary (SignedInt b) where
   msb (SignedInt bits) = Bin.msb bits
@@ -132,14 +134,12 @@ instance semiringSignedInt :: Pos b => Semiring (SignedInt b) where
       let numValues = Bits (_1 : A.replicate n _0)
       in Bin.tail $ Bin.subtractBits (Bin.extendOverflow res) numValues
   one = SignedInt Bin.one
-  mul (SignedInt as) (SignedInt bs) = SignedInt (resize prod) where
-    resize xs | prodLen < len = Bin.addLeadingZeros len xs
-    resize xs | prodLen > len = Bin.drop (prodLen - len) xs
-    resize xs = xs
-    prodLen = Bin.length prod
-    prod = mulBits (signExtend dlen as) (signExtend dlen bs)
-    dlen = 2 * len
-    len = Nat.toInt (undefined :: b)
+  mul (SignedInt as) (SignedInt bs) = Bin.unsafeFromBits result where
+    nBits = Nat.toInt (undefined :: b)
+    rawResult = mulBits as bs
+    numValues = Bits $ _1 : (A.replicate nBits _0)
+    (Tuple quo rem) = divMod rawResult numValues
+    result = if Bin.isOdd quo then Bin.tail rem else rem
 
 instance ringSignedInt :: Pos b => Ring (SignedInt b) where
   sub (SignedInt as) (SignedInt bs) = SignedInt $ Bin.subtractBits as bs
@@ -151,7 +151,9 @@ double :: Bits -> Bits
 double = Bin.leftShift _0 >>> \(Tuple o (Bits bits)) -> Bits (A.cons o bits)
 
 half :: Bits -> Bits
-half = signedRightShift >>> snd
+-- | https://en.wikipedia.org/wiki/Arithmetic_shift#Non-equivalence_of_arithmetic_right_shift_and_division
+half a | isNegative a && Bin.isOdd a = half (discardOverflow $ Bin.addBits _1 Bin.zero a)
+half a = snd (signedRightShift a)
 
 mulBits :: Bits -> Bits -> Bits
 mulBits x _ | Bin.isZero x = Bin.zero
@@ -171,7 +173,7 @@ divMod x y =
      then Tuple (inc q) (r' `Bin.subtractBits` y)
      else Tuple q r'
 
-instance baseNSignedInt :: BaseN (SignedInt a) where
+instance baseNSignedInt :: Pos a => BaseN (SignedInt a) where
   toStringAs (Radix r) si@(SignedInt bits) | r == (Bits [_1, _0]) =
     Bin.toString (compact bits) where
       compact b | Bin.msb b == _1 = Bin.one <> Bin.stripLeadingBit _1 b
@@ -184,7 +186,7 @@ instance baseNSignedInt :: BaseN (SignedInt a) where
       in req quo (unsafeBitsAsChars rem <> acc)
 
 -- | Like `toStringAs` but outputs `-` prefix instead of the two's complement
-toNumberAs :: ∀ a . Radix -> SignedInt a -> String
+toNumberAs :: ∀ a . Pos a => Radix -> SignedInt a -> String
 toNumberAs r si = if isNegative si
                   then "-" <> toStringAs r (complement si)
                   else toStringAs r si

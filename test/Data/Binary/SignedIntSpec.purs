@@ -104,10 +104,10 @@ propMultiplication (ArbInt a) (ArbInt b) =
   expected == actual
     <?> "\nExpected:          " <> show expected
     <>  "\nActual:            " <> show actual
-    <>  "\nInt (left):        " <> show a
-    <>  "\nInt (right):       " <> show b
-    <>  "\nSignedInt (left):  " <> show (si a)
-    <>  "\nSignedInt (right): " <> show (si b)
+    <>  "\nInt (a):           " <> show a
+    <>  "\nInt (b):           " <> show b
+    <>  "\nSignedInt (a):     " <> show (si a)
+    <>  "\nSignedInt (b):     " <> show (si b)
     <>  "\nSignedInt (mul):   " <> show res
   where
     actual = toInt res
