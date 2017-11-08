@@ -78,10 +78,10 @@ fromInt b i = SignedInt signed where
   twosComplement :: Int -> Boolean -> Bits -> Bits
   twosComplement w false bits = Bin.addLeadingZeros w bits
   twosComplement w true bits@(Bits bs) =
-    case compare (A.length bs) (w - 1) of
+    case compare (A.length bs) w of
     GT -> bits
     EQ -> complementBits bits
-    LT -> complementBits (Bin.addLeadingZeros (w - 1) bits)
+    LT -> complementBits (Bin.addLeadingZeros w bits)
 
 toInt :: ∀ b . Pos b => LtEq b D32 => SignedInt b -> Int
 toInt si | si == top = top

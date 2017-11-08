@@ -9,6 +9,7 @@ import Control.Monad.Eff.Random (RANDOM)
 import Data.Array (foldr, replicate)
 import Data.Array as A
 import Data.Binary.BaseN (bin, toStringAs)
+import Data.Binary as Bin
 import Data.Binary.SignedInt (fromInt, toInt, toNumberAs)
 import Data.Foldable (all)
 import Data.Int as Int
@@ -24,6 +25,7 @@ spec :: ∀ e. TestSuite (random :: RANDOM, console :: CONSOLE | e)
 spec = suite "SignedInt" do
   test "fromInt" $ quickCheck (propFromInt d32)
   test "fromInt" $ quickCheck (propFromInt d99)
+  test "number of bits is 32" $ quickCheck propBitSize
   test "negation" $ quickCheck propNegation
   test "propIntRoundtrip" $ quickCheck propIntRoundtrip
   test "toBinString contains only bin digits" $ quickCheck propBinString
@@ -43,6 +45,16 @@ propFromInt b (ArbInt i) =
     expected = Int.toStringAs Int.binary i
     actual = toNumberAs bin si
     si = fromInt b i
+
+propBitSize :: ArbSignedInt32 -> Result
+propBitSize (ArbSignedInt32 si) =
+  expected == actual
+    <?> "\nExpected:  " <> show expected
+    <>  "\nActual:    " <> show actual
+    <>  "\nSignedInt: " <> show si
+  where
+    expected = 32
+    actual = Bin.length (Bin.toBits si)
 
 propNegation :: ArbSignedInt32 -> Result
 propNegation (ArbSignedInt32 si) =
@@ -72,21 +84,31 @@ propBinStringUniqness as = A.length sts === A.length uis where
 propAddition :: ArbInt -> ArbInt -> Result
 propAddition (ArbInt a) (ArbInt b) =
   expected == actual
-    <?> show a <> " + " <> show b <> " (" <> show expected <> ") "
-    <> "/= " <> show (u a) <> " + " <> show (u b)
-    <> " (" <> show sum <> ", " <> show actual <> ")"
+    <?> "\nExpected:          " <> show expected
+    <>  "\nActual:            " <> show actual
+    <>  "\nInt (left):        " <> show a
+    <>  "\nInt (right):       " <> show b
+    <>  "\nSignedInt (left):  " <> show (si a)
+    <>  "\nSignedInt (right): " <> show (si b)
+    <>  "\nSignedInt (sum):   " <> show sum
   where
     expected = a + b
     actual = toInt sum
-    sum = u a + u b
-    u = fromInt d32
+    sum = si a + si b
+    si = fromInt d32
 
 propMultiplication :: ArbInt -> ArbInt -> Result
-propMultiplication (ArbInt a) (ArbInt b) | a == top && b == top = Success -- | PS wraps around incorrectly in this case
+propMultiplication (ArbInt a) (ArbInt b) | a == top && b == top =
+  Success -- | PS wraps around Int incorrectly in this case
 propMultiplication (ArbInt a) (ArbInt b) =
   expected == actual
-    <?> show a <> " * " <> show b <> " (" <> show expected <> ") /= "
-    <> show (si a) <> " * " <> show (si b) <> " (" <> show res <> ")"
+    <?> "\nExpected:          " <> show expected
+    <>  "\nActual:            " <> show actual
+    <>  "\nInt (left):        " <> show a
+    <>  "\nInt (right):       " <> show b
+    <>  "\nSignedInt (left):  " <> show (si a)
+    <>  "\nSignedInt (right): " <> show (si b)
+    <>  "\nSignedInt (mul):   " <> show res
   where
     actual = toInt res
     expected = a * b

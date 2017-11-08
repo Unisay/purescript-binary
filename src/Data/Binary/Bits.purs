@@ -21,15 +21,16 @@ module Data.Binary.Bits
   , unsafeBitsToInt
   ) where
 
+import Control.Plus (empty)
 import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary.Bit (Bit(..), _0, _1, bitToChar, bitToInt)
 import Data.Binary.Overflow (Overflow(..), discardOverflow, makeOverflow, overflowBit)
 import Data.Int as Int
-import Data.String as Str
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
+import Data.String as Str
 import Data.Tuple (Tuple(..), fst, uncurry)
 import Prelude hiding (zero)
 
@@ -136,11 +137,11 @@ extendOverflow (NoOverflow bits) = bits
 extendOverflow (Overflow (Bits bits)) = Bits (_1 : bits)
 
 intToBits :: Int -> Bits
-intToBits = intBits >>> A.drop 1 >>> Bits
-  where
-    intBits 0 = [_0]
-    intBits n | Int.odd n = A.snoc (intBits (n `div` 2)) _1
-              | otherwise = A.snoc (intBits (n `div` 2)) _0
+intToBits 0 = zero
+intToBits i = Bits (f i) where
+  f 0 = empty
+  f n | Int.odd n = A.snoc (f (n `div` 2)) _1
+      | otherwise = A.snoc (f (n `div` 2)) _0
 
 unsafeBitsToInt :: Bits -> Int
 unsafeBitsToInt (Bits bits) = fst $ A.foldr f (Tuple 0 1) bits where
