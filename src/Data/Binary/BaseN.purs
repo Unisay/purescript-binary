@@ -1,6 +1,6 @@
 module Data.Binary.BaseN
   ( class BaseN
-  , toBase
+  , toStringAs
   , Radix(Radix)
   , bin
   , oct
@@ -20,7 +20,7 @@ import Data.Binary.Bits (Bits(..))
 import Data.Maybe (fromMaybe)
 
 class BaseN a where
-  toBase :: Radix -> a -> String
+  toStringAs :: Radix -> a -> String
 
 
 -- | The number of unique digits (including zero) used to represent integers in
@@ -48,7 +48,7 @@ hex :: Radix
 hex = Radix (Bits [_1, _0, _0, _0, _0])
 
 alphabet :: Array Char
-alphabet = [ '0' ,'1' ,'2' ,'3' ,'4' ,'5' ,'6' ,'7' ,'8' ,'9' , 'a' ,'b' ,'c' ,'d' ,'e' ,'f' ]
+alphabet = ['0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f']
 
 unsafeBitsAsChars :: Bits -> Array Char
 unsafeBitsAsChars bits = fromMaybe [] $ A.singleton <$> (alphabet !! Bin.unsafeBitsToInt bits)

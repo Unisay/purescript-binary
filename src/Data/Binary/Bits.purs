@@ -1,5 +1,6 @@
 module Data.Binary.Bits
   ( Bits(..)
+  , toString
   , zero
   , one
   , head
@@ -20,14 +21,16 @@ module Data.Binary.Bits
   , unsafeBitsToInt
   ) where
 
+import Control.Plus (empty)
 import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary.Bit (Bit(..), _0, _1, bitToInt)
+import Data.Binary.Bit (Bit(..), _0, _1, bitToChar, bitToInt)
 import Data.Binary.Overflow (Overflow(..), discardOverflow, makeOverflow, overflowBit)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
+import Data.String as Str
 import Data.Tuple (Tuple(..), fst, uncurry)
 import Prelude hiding (zero)
 
@@ -36,6 +39,9 @@ derive instance newtypeBits :: Newtype Bits _
 derive newtype instance eqBits :: Eq Bits
 derive newtype instance showBits :: Show Bits
 derive newtype instance semigroupBits :: Semigroup Bits
+
+toString :: Bits -> String
+toString (Bits bits) = Str.fromCharArray $ map bitToChar bits
 
 -- | align length by adding zeroes from the left
 align :: Bits -> Bits -> Tuple Bits Bits
@@ -131,11 +137,11 @@ extendOverflow (NoOverflow bits) = bits
 extendOverflow (Overflow (Bits bits)) = Bits (_1 : bits)
 
 intToBits :: Int -> Bits
-intToBits = intBits >>> Bits
-  where
-    intBits 0 = [_0]
-    intBits n | Int.odd n = A.snoc (intBits (n `div` 2)) _1
-              | otherwise = A.snoc (intBits (n `div` 2)) _0
+intToBits 0 = zero
+intToBits i = Bits (f i) where
+  f 0 = empty
+  f n | Int.odd n = A.snoc (f (n `div` 2)) _1
+      | otherwise = A.snoc (f (n `div` 2)) _0
 
 unsafeBitsToInt :: Bits -> Int
 unsafeBitsToInt (Bits bits) = fst $ A.foldr f (Tuple 0 1) bits where

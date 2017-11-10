@@ -23,6 +23,7 @@ module Data.Binary
   , unsafeFromBits
   , addLeadingBit
   , addLeadingZeros
+  , stripLeadingBit
   , stripLeadingZeros
   , tryFromBinStringElastic
   ) where
@@ -36,7 +37,7 @@ import Data.Binary.Bits (Bits(..), zero)
 import Data.Binary.Bits as Bits
 import Data.Binary.Overflow as Overflow
 import Data.HeytingAlgebra as HA
-import Data.Maybe (Maybe(Nothing, Just), fromMaybe, fromMaybe')
+import Data.Maybe (Maybe(Just, Nothing), fromMaybe')
 import Data.Newtype (unwrap, wrap)
 import Data.String as Str
 import Data.Traversable (traverse)
@@ -44,7 +45,7 @@ import Data.Tuple (Tuple(Tuple), snd)
 import Partial.Unsafe (unsafeCrashWith)
 
 
-class  Binary a where
+class Binary a where
   -- | Least significant bit
   lsb :: a -> Bit
   -- | most significant bit
@@ -93,8 +94,8 @@ instance binaryBit :: Binary Bit where
   tryFromBits _ = Nothing
 
 instance binaryBits :: Binary Bits where
-  lsb (Bits as) = fromMaybe _0 (A.last as)
-  msb (Bits as) = fromMaybe _0 (A.head as)
+  lsb = Bits.last
+  msb = Bits.head
   and (Bits as) (Bits bs) = Bits (A.zipWith and as bs)
   xor (Bits as) (Bits bs) = Bits (A.zipWith xor as bs)
   or  (Bits as) (Bits bs) = Bits (A.zipWith or as bs)
@@ -134,28 +135,24 @@ instance elasticBits :: Elastic Bits where
   fromBits bs = bs
 
 addLeadingZeros :: ∀ a. Elastic a => Int -> a -> a
-addLeadingZeros w = toBits
-                >>> unwrap
-                >>> addLeadingBit w _0
-                >>> wrap
-                >>> fromBits
+addLeadingZeros = addLeadingBit _0
 
-addLeadingBit :: Int -> Bit -> Array Bit -> Array Bit
-addLeadingBit width bit bits =
-  let d = sub width (A.length bits)
-  in if d < 1 then bits else (A.replicate d bit) <> bits
+addLeadingBit :: ∀ a. Elastic a => Bit -> Int -> a -> a
+addLeadingBit b w =
+  toBits >>> unwrap >>> addLeadingBitArray b w >>> wrap >>> fromBits
+  where addLeadingBitArray bit width bits =
+          let d = sub width (A.length bits)
+          in if d < 1 then bits else (A.replicate d bit) <> bits
 
 stripLeadingZeros :: ∀ a. Elastic a => a -> a
-stripLeadingZeros = toBits
-                >>> unwrap
-                >>> stripLeadingBit _0
-                >>> wrap
-                >>> fromBits
+stripLeadingZeros = stripLeadingBit _0
 
-stripLeadingBit :: Bit -> Array Bit -> Array Bit
-stripLeadingBit bit bits =
-  let xs = A.dropWhile (eq bit) bits
-  in if A.null xs then [_0] else xs
+stripLeadingBit :: ∀ a. Elastic a => Bit -> a -> a
+stripLeadingBit b =
+  toBits >>> unwrap >>> stripLeadingBitArray b >>> wrap >>> fromBits
+  where stripLeadingBitArray bit bits =
+          let xs = A.dropWhile (eq bit) bits
+          in if A.null xs then [_0] else xs
 
 tryFromBinStringElastic :: ∀ a. Elastic a => String -> Maybe a
 tryFromBinStringElastic =

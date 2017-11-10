@@ -6,7 +6,7 @@ import Prelude
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
-import Data.Binary (toBinString)
+import Data.Binary.BaseN (bin, toStringAs)
 import Data.Binary.UnsignedInt (fromInt, toInt)
 import Data.Foldable (all)
 import Data.Int (toNumber)
@@ -37,28 +37,29 @@ propFromInt :: ∀ b . Pos b => GtEq b D31 => b -> ArbNonNegativeInt -> Result
 propFromInt b (ArbNonNegativeInt i) =
   expected === actual where
     expected = Int.toStringAs Int.binary i
-    actual = Str.dropWhile (eq '0') (toBinString (fromInt b i))
+    actual = Str.dropWhile (eq '0') (toStringAs bin (fromInt b i))
 
 propToInt :: ArbUnsignedInt31 -> Result
 propToInt (ArbUnsignedInt31 ui) =
   expected === actual where
-    expected = Str.dropWhile (eq '0') (toBinString ui)
+    expected = Str.dropWhile (eq '0') (toStringAs bin ui)
     actual = Int.toStringAs Int.binary (toInt ui)
 
 propBinString :: ArbUnsignedInt31 -> Result
 propBinString (ArbUnsignedInt31 ui) =
-  let x = toBinString ui
+  let x = toStringAs bin ui
   in all (\d -> d == '1' || d == '0') (Str.toCharArray x)
     <?> "String representation of UnsignedInt contains not only digits 1 and 0: " <> x
 
 propBinStringEmptiness :: ArbUnsignedInt31 -> Result
 propBinStringEmptiness (ArbUnsignedInt31 ui) =
-  not Str.null (toBinString ui)
+  not Str.null (toStringAs bin ui)
     <?> "String representation of UnsignedInt must not be empty"
 
 propBinStringUniqness :: Array ArbUnsignedInt31 -> Result
 propBinStringUniqness as = A.length sts === A.length uis where
-  sts = A.nub $ map toBinString uis
+  sts = A.nub $ map (toStringAs bin
+    ) uis
   uis = A.nub $ map unwrap as
 
 propAddition :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result

@@ -11,7 +11,7 @@ import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary (class Binary, Bits(Bits), Overflow(NoOverflow), _0, _1)
 import Data.Binary as Bin
-import Data.Binary.BaseN (class BaseN, Radix(..), bin, toBase, unsafeBitsAsChars)
+import Data.Binary.BaseN (class BaseN, Radix(Radix), unsafeBitsAsChars)
 import Data.Maybe (Maybe(Just, Nothing))
 import Data.Newtype (class Newtype, unwrap)
 import Data.String as Str
@@ -41,7 +41,7 @@ instance ordUnsignedInt :: Pos b => Ord (UnsignedInt b) where
 
 instance showUnsignedInt :: Pos b => Show (UnsignedInt b) where
   show (UnsignedInt bits) =
-    "UnsignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> toBase bin bits
+    "UnsignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> Bin.toString bits
 
 -- | Converts `Int` value to `UnsignedInt b` for b >= 31
 -- | Behavior for negative `Int` values is unspecified.
@@ -67,7 +67,7 @@ instance binaryUnsignedInt :: Pos b => Binary (UnsignedInt b) where
     f bs = Just $ UnsignedInt bs
 
 instance boundedUnsignedInt :: Pos b => Bounded (UnsignedInt b) where
-  bottom = _0
+  bottom = zero
   top = UnsignedInt (Bits (A.replicate (Nat.toInt (undefined :: b)) _1))
 
 instance semiringUnsignedInt :: Pos b => Semiring (UnsignedInt b) where
@@ -115,8 +115,9 @@ instance ringUnsignedInt :: Pos b => Ring (UnsignedInt b) where
   sub (UnsignedInt as) (UnsignedInt bs) = UnsignedInt $ Bin.subtractBits as bs
 
 instance baseNUnsignedInt :: Pos b => BaseN (UnsignedInt b) where
-  toBase (Radix r) (UnsignedInt bs) = Str.fromCharArray (req bs []) where
-    req bits acc | (UnsignedInt bits :: UnsignedInt a) < UnsignedInt r =
+  toStringAs (Radix r) (UnsignedInt bits) | r == (Bits [_1, _0]) = Bin.toString bits
+  toStringAs (Radix r) (UnsignedInt bs) = Str.fromCharArray (req bs []) where
+    req bits acc | (UnsignedInt bits :: UnsignedInt b) < UnsignedInt r =
       unsafeBitsAsChars bits <> acc
     req bits acc =
       let (Tuple quo rem) = bits `divMod` r
