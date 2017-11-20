@@ -2,7 +2,9 @@ module Data.Binary.Bits
   ( Bits(..)
   , toString
   , zero
+  , zeroes
   , one
+  , ones
   , head
   , tail
   , init
@@ -11,6 +13,8 @@ module Data.Binary.Bits
   , take
   , uncons
   , length
+  , setLsb
+  , setMsb
   , align
   , addBit
   , addBits
@@ -30,6 +34,7 @@ import Data.Binary.Overflow (Overflow(..), discardOverflow, makeOverflow, overfl
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
+import Data.Ord (abs)
 import Data.String as Str
 import Data.Tuple (Tuple(..), fst, uncurry)
 import Prelude hiding (zero)
@@ -53,13 +58,19 @@ align bas@(Bits as) bbs@(Bits bs) =
   where la = A.length as
         lb = A.length bs
         extend :: Int -> Array Bit -> Bits
-        extend d xs = Bits (A.replicate d (Bit false) <> xs)
+        extend d xs = Bits (A.replicate d _0 <> xs)
 
 zero :: Bits
 zero = Bits [_0]
 
+zeroes :: Int -> Bits
+zeroes n = Bits $ A.replicate (abs n) _0
+
 one :: Bits
 one = Bits [_1]
+
+ones :: Int -> Bits
+ones n = Bits $ A.replicate (abs n) _1
 
 head :: Bits -> Bit
 head (Bits bits) = fromMaybe _0 (A.head bits)
@@ -91,6 +102,18 @@ uncons (Bits bits) = f (A.uncons bits) where
 length :: Bits -> Int
 length = unwrap >>> A.length
 
+setLsb :: Bit -> Bits -> Bits
+setLsb bit (Bits bits) = Bits result where
+  result = fromMaybe [bit] updated
+  updated = A.updateAt pos bit bits
+  pos = len - 1
+  len = A.length bits
+
+setMsb :: Bit -> Bits -> Bits
+setMsb bit (Bits bits) = Bits result where
+  result = fromMaybe [bit] updated
+  updated = A.updateAt 0 bit bits
+
 defaultBits :: Maybe (Array Bit) -> Bits
 defaultBits (Just []) = zero
 defaultBits (Just a) = Bits a
@@ -118,7 +141,7 @@ addBits' :: Bit -> Bits -> Bits -> Bits
 addBits' bit a b = extendOverflow (addBits bit a b)
 
 subtractBits :: Bits -> Bits -> Bits
-subtractBits as bs = Bits acc where
+subtractBits (Bits as) (Bits bs) = Bits acc where
   f :: (Tuple Bit Bit) -> Tuple Boolean (Array Bit) -> Tuple Boolean (Array Bit)
   -- https://i.stack.imgur.com/5M40R.jpg
   f (Tuple (Bit false) (Bit false)) (Tuple false acc) = Tuple false (A.cons _0 acc)
@@ -129,8 +152,7 @@ subtractBits as bs = Bits acc where
   f (Tuple (Bit true)  (Bit false)) (Tuple true  acc) = Tuple false (A.cons _0 acc)
   f (Tuple (Bit true)  (Bit true) ) (Tuple false acc) = Tuple false (A.cons _0 acc)
   f (Tuple (Bit true)  (Bit true) ) (Tuple true  acc) = Tuple true  (A.cons _1 acc)
-  pairs = uncurry A.zip $ bimap unwrap unwrap $ align as bs
-  (Tuple _ acc) = A.foldr f (Tuple false []) pairs
+  (Tuple _ acc) = A.foldr f (Tuple false []) (A.zip as bs)
 
 extendOverflow :: Overflow Bits -> Bits
 extendOverflow (NoOverflow bits) = bits

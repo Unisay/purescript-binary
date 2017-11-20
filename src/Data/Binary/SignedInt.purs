@@ -6,23 +6,24 @@ module Data.Binary.SignedInt
   , complement
   , flipSign
   , toNumberAs
-  , half -- TODO
-  , mulBits -- TODO
+  , divMod
   ) where
 
 import Prelude
 
+import Control.Monad.Eff.Console (log)
+import Control.Monad.Eff.Unsafe (unsafePerformEff)
 import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary (class Binary, Bit, Bits(Bits), Overflow(NoOverflow), _0, _1, discardOverflow)
+import Data.Binary (class Binary, Bit(Bit), Bits(Bits), Overflow(NoOverflow), _0, _1)
 import Data.Binary as Bin
 import Data.Binary.BaseN (class BaseN, Radix(Radix), toStringAs, unsafeBitsAsChars)
 import Data.Maybe (Maybe(Nothing, Just))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Ord (abs)
 import Data.String as Str
-import Data.Tuple (Tuple(..), snd, uncurry)
+import Data.Tuple (Tuple(..), fst, snd, uncurry)
 import Data.Typelevel.Num (class GtEq, class LtEq, type (:*), D1, D16, D2, D32, D5, D6, D64, D8)
 import Data.Typelevel.Num as Nat
 import Data.Typelevel.Num.Sets (class Pos)
@@ -86,13 +87,10 @@ fromInt b i = SignedInt signed where
     LT -> complementBits (Bin.addLeadingZeros w bits)
 
 toInt :: ∀ b . Pos b => LtEq b D32 => SignedInt b -> Int
-toInt si | si == top = top
-toInt si | si == bottom = bottom
 toInt si@(SignedInt bits) =
   if isNegative si
-  then negate let (SignedInt bb) = complement si in bitsToInt bb
-  else bitsToInt bits
-  where bitsToInt = Bin.tail >>> Bin.unsafeBitsToInt
+  then negate let (SignedInt bb) = complement si in Bin.unsafeBitsToInt bb
+  else Bin.unsafeBitsToInt $ Bin.tail bits
 
 isNegative :: ∀ a . Binary a => a -> Boolean
 isNegative = Bin.msb >>> eq _1
@@ -115,14 +113,36 @@ instance binarySignedInt :: Pos b => Binary (SignedInt b) where
     where width = Nat.toInt (undefined :: b)
 
 instance boundedSignedInt :: Pos b => Bounded (SignedInt b) where
-  bottom = SignedInt (Bits (A.cons _1 (A.replicate (Nat.toInt (undefined :: b) - 1) _0)))
-  top    = SignedInt (Bits (A.cons _0 (A.replicate (Nat.toInt (undefined :: b) - 1) _1)))
+  bottom = SignedInt $ Bits (A.cons _1 (A.replicate (Nat.toInt (undefined :: b) - 1) _0))
+  top    = SignedInt $ Bits (A.cons _0 (A.replicate (Nat.toInt (undefined :: b) - 1) _1))
 
 signExtend :: Int -> Bits -> Bits
 signExtend width bits | Bin.head bits == _0 = Bin.addLeadingZeros width bits
 signExtend width (Bits bits) =
   let d = sub width (A.length bits)
   in Bits if d < 1 then bits else (A.replicate d _1) <> bits
+
+signShrink :: Int -> Bits -> Bits
+signShrink width bits@(Bits bs) =
+  if len <= width
+    then bits
+    else if h1 == h2
+           then signShrink (width - 1) t
+           else bits
+  where
+    h1 = Bin.head bits
+    h2 = Bin.head t
+    t = Bin.tail bits
+    len = Bin.length bits
+
+signAlign :: Bits -> Bits -> Tuple Bits Bits
+signAlign bas@(Bits as) bbs@(Bits bs) =
+  case compare la lb of
+  EQ -> Tuple bas bbs
+  LT -> Tuple (signExtend lb bas) bbs
+  GT -> Tuple bas (signExtend la bbs)
+  where la = A.length as
+        lb = A.length bs
 
 instance semiringSignedInt :: Pos b => Semiring (SignedInt b) where
   zero = SignedInt Bin.zero
@@ -132,17 +152,32 @@ instance semiringSignedInt :: Pos b => Semiring (SignedInt b) where
     wrapBitsOverflow _ (NoOverflow bits) = bits
     wrapBitsOverflow n res =
       let numValues = Bits (_1 : A.replicate n _0)
-      in Bin.tail $ Bin.subtractBits (Bin.extendOverflow res) numValues
+      in Bin.tail $ subtractBits (Bin.extendOverflow res) numValues
   one = SignedInt Bin.one
-  mul (SignedInt as) (SignedInt bs) = Bin.unsafeFromBits result where
-    nBits = Nat.toInt (undefined :: b)
-    rawResult = mulBits as bs
-    numValues = Bits $ _1 : (A.replicate nBits _0)
-    (Tuple quo rem) = divMod rawResult numValues
-    result = if Bin.isOdd quo then Bin.tail rem else rem
+  mul m@(SignedInt mBits) (SignedInt rBits) = SignedInt $ res
+    where
+      res = iter rlen p
+      a = signExtend (1 + mlen) mBits <> Bin.zeroes (rlen + 1)
+      s = nBits <> Bin.zeroes (rlen + 1)
+      nBits = complementBits $ signExtend (1 + mlen) mBits
+      p = Bin.zeroes (1 + mlen) <> rBits <> Bin.zero
+      add k j = Bin.discardOverflow (Bin.addBits _0 k j)
+      shr = signedRightShift >>> snd
+      mlen = Bin.length mBits
+      rlen = Bin.length rBits
+      iter 0 t = Bin.init t
+      iter y t = iter (y - 1) t' where
+        t' = shr $ f (Bin.last $ Bin.init t) (Bin.last t)
+        f (Bit false) (Bit true) = add t a
+        f (Bit true) (Bit false) = add t s
+        f _ _ = t
+
+
+dbg :: ∀ a . String -> a -> a
+dbg s a = let _ = unsafePerformEff (log s) in a
 
 instance ringSignedInt :: Pos b => Ring (SignedInt b) where
-  sub (SignedInt as) (SignedInt bs) = SignedInt $ Bin.subtractBits as bs
+  sub (SignedInt as) (SignedInt bs) = SignedInt $ subtractBits as bs
 
 signedRightShift :: Bits -> Tuple Bit Bits
 signedRightShift bits = Bin.rightShift (Bin.msb bits) bits
@@ -150,28 +185,32 @@ signedRightShift bits = Bin.rightShift (Bin.msb bits) bits
 double :: Bits -> Bits
 double = Bin.leftShift _0 >>> \(Tuple o (Bits bits)) -> Bits (A.cons o bits)
 
+increment :: Bits -> Bits
+increment a = Bin.discardOverflow $ Bin.addBits _1 Bin.zero a
+
 half :: Bits -> Bits
 -- | https://en.wikipedia.org/wiki/Arithmetic_shift#Non-equivalence_of_arithmetic_right_shift_and_division
-half a | isNegative a && Bin.isOdd a = half (discardOverflow $ Bin.addBits _1 Bin.zero a)
+half a | isNegative a && Bin.isOdd a = half (increment a)
 half a = snd (signedRightShift a)
 
-mulBits :: Bits -> Bits -> Bits
-mulBits x _ | Bin.isZero x = Bin.zero
-mulBits _ y | Bin.isZero y = Bin.zero
-mulBits x y =
-  let z = mulBits x (half y)
-  in if Bin.isEven y then double z else Bin.addBits' _0 x (double z)
+subtractBits :: Bits -> Bits -> Bits
+subtractBits as bs = uncurry Bin.subtractBits $ signAlign as bs
 
 divMod :: Bits -> Bits -> Tuple Bits Bits
 divMod x _ | Bin.isZero x = Tuple Bin.zero Bin.zero
 divMod x y =
-  let inc a = Bin.addBits' _0 a Bin.one
-      t = divMod (half x) y
+  let t = divMod (half x) y
       (Tuple q r) = bimap double double t
-      r' = if Bin.isOdd x then inc r else r
-  in if (SignedInt r' :: SignedInt D32) >= SignedInt y
-     then Tuple (inc q) (r' `Bin.subtractBits` y)
+      r' = if Bin.isOdd x then increment r else r
+  in if (SignedInt r' :: SignedInt D64) >= SignedInt y
+     then Tuple (increment q) (r' `subtractBits` y)
      else Tuple q r'
+
+div :: Bits -> Bits -> Bits
+div a b = fst (divMod a b)
+
+mod :: Bits -> Bits -> Bits
+mod a b = snd (divMod a b)
 
 instance baseNSignedInt :: Pos a => BaseN (SignedInt a) where
   toStringAs (Radix r) si@(SignedInt bits) | r == (Bits [_1, _0]) =
@@ -190,6 +229,5 @@ toNumberAs :: ∀ a . Pos a => Radix -> SignedInt a -> String
 toNumberAs r si = if isNegative si
                   then "-" <> toStringAs r (complement si)
                   else toStringAs r si
-
 
   -- TODO: fromStringAs

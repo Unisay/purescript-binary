@@ -78,7 +78,7 @@ instance semiringUnsignedInt :: Pos b => Semiring (UnsignedInt b) where
     wrapBitsOverflow _ (NoOverflow bits) = bits
     wrapBitsOverflow n res =
       let numValues = Bits (_1 : A.replicate n _0)
-      in Bin.tail $ Bin.subtractBits (Bin.extendOverflow res) numValues
+      in Bin.tail $ subtractBits (Bin.extendOverflow res) numValues
   one = UnsignedInt Bin.one
   mul (UnsignedInt as) (UnsignedInt bs) = Bin.unsafeFromBits result where
     nBits = Nat.toInt (undefined :: b)
@@ -100,6 +100,9 @@ mulBits x y =
   let z = mulBits x (half y)
   in if Bin.isEven y then double z else Bin.addBits' _0 x (double z)
 
+subtractBits :: Bits -> Bits -> Bits
+subtractBits as bs = uncurry Bin.subtractBits $ Bin.align as bs
+
 divMod :: Bits -> Bits -> Tuple Bits Bits
 divMod x _ | Bin.isZero x = Tuple Bin.zero Bin.zero
 divMod x y =
@@ -108,11 +111,11 @@ divMod x y =
       (Tuple q r) = bimap double double t
       r' = if Bin.isOdd x then inc r else r
   in if (UnsignedInt r' :: UnsignedInt D32) >= UnsignedInt y
-     then Tuple (inc q) (r' `Bin.subtractBits` y)
+     then Tuple (inc q) (r' `subtractBits` y)
      else Tuple q r'
 
 instance ringUnsignedInt :: Pos b => Ring (UnsignedInt b) where
-  sub (UnsignedInt as) (UnsignedInt bs) = UnsignedInt $ Bin.subtractBits as bs
+  sub (UnsignedInt as) (UnsignedInt bs) = UnsignedInt $ subtractBits as bs
 
 instance baseNUnsignedInt :: Pos b => BaseN (UnsignedInt b) where
   toStringAs (Radix r) (UnsignedInt bits) | r == (Bits [_1, _0]) = Bin.toString bits

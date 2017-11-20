@@ -8,8 +8,8 @@ import Control.Monad.Eff.Console (CONSOLE)
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array (foldr, replicate)
 import Data.Array as A
-import Data.Binary.BaseN (bin, toStringAs)
 import Data.Binary as Bin
+import Data.Binary.BaseN (bin, toStringAs)
 import Data.Binary.SignedInt (fromInt, toInt, toNumberAs)
 import Data.Foldable (all)
 import Data.Int as Int
@@ -17,7 +17,7 @@ import Data.Newtype (unwrap)
 import Data.String as Str
 import Data.Typelevel.Num (class GtEq, class Pos, D32, d32, d99)
 import Test.Arbitrary (ArbInt(..), ArbSignedInt32(ArbSignedInt32))
-import Test.QuickCheck (Result(..), (<?>), (===))
+import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 
@@ -58,7 +58,13 @@ propBitSize (ArbSignedInt32 si) =
 
 propNegation :: ArbSignedInt32 -> Result
 propNegation (ArbSignedInt32 si) =
-  si === (foldr compose id (replicate 8 negate) $ si)
+  expected == actual
+    <?> "\nExpected:  " <> show expected
+    <>  "\nActual:    " <> show actual
+    <>  "\nSignedInt: " <> show si
+  where
+    expected = si
+    actual = foldr compose id (replicate 8 negate) $ si
 
 propIntRoundtrip :: ArbInt -> Result
 propIntRoundtrip (ArbInt i) = i === i' where
@@ -98,8 +104,6 @@ propAddition (ArbInt a) (ArbInt b) =
     si = fromInt d32
 
 propMultiplication :: ArbInt -> ArbInt -> Result
-propMultiplication (ArbInt a) (ArbInt b) | a == top && b == top =
-  Success -- | PS wraps around Int incorrectly in this case
 propMultiplication (ArbInt a) (ArbInt b) =
   expected == actual
     <?> "\nExpected:          " <> show expected
@@ -111,6 +115,8 @@ propMultiplication (ArbInt a) (ArbInt b) =
     <>  "\nSignedInt (mul):   " <> show res
   where
     actual = toInt res
-    expected = a * b
+    expected = a `imul` b
     res = si a * si b
     si = fromInt d32
+
+foreign import imul :: Int -> Int -> Int
