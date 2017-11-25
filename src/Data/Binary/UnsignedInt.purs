@@ -139,6 +139,6 @@ instance baseNUnsignedInt :: Pos b => BaseN (UnsignedInt b) where
   fromStringAs radix str = fst <$> A.foldr f (Tuple zero one) <$> traverse t cs where
     f i (Tuple r p) = Tuple (p * i + r) (p * base)
     t = charToBits radix >=> Bin.tryFromBits
-    cs = Str.toCharArray str
+    cs = Str.toCharArray (Str.toLower str)
     charToBits r = flip Map.lookup (Base.alphabet radix)
     base = UnsignedInt (Base.toBits radix)

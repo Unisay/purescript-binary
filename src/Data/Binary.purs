@@ -54,8 +54,6 @@ class Binary a where
   xor :: a -> a -> a
   or  :: a -> a -> a
   not :: a -> a
-  -- add' :: Bit -> a -> a -> Overflow a
-  -- subtract :: a -> a -> a
   leftShift :: Bit -> a -> Tuple Bit a
   rightShift :: Bit -> a -> Tuple Bit a
   toBits :: a -> Bits
