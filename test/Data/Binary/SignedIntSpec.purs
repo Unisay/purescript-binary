@@ -9,18 +9,18 @@ import Control.Monad.Eff.Random (RANDOM)
 import Data.Array (foldr, replicate)
 import Data.Array as A
 import Data.Binary as Bin
-import Data.Binary.BaseN (bin, toStringAs)
+import Data.Binary.BaseN (Radix(..), toStringAs)
 import Data.Binary.SignedInt (fromInt, toInt, toNumberAs)
 import Data.Foldable (all)
 import Data.Int as Int
 import Data.Newtype (unwrap)
 import Data.String as Str
 import Data.Typelevel.Num (class GtEq, class Pos, D32, d32, d99)
+import Imul (imul)
 import Test.Arbitrary (ArbInt(..), ArbSignedInt32(ArbSignedInt32))
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
-import Imul (imul)
 
 spec :: ∀ e. TestSuite (random :: RANDOM, console :: CONSOLE | e)
 spec = suite "SignedInt" do
@@ -44,7 +44,7 @@ propFromInt b (ArbInt i) =
     <>  "\nSignedInt: " <> show si
   where
     expected = Int.toStringAs Int.binary i
-    actual = toNumberAs bin si
+    actual = toNumberAs Bin si
     si = fromInt b i
 
 propBitSize :: ArbSignedInt32 -> Result
@@ -74,18 +74,18 @@ propIntRoundtrip (ArbInt i) = i === i' where
 
 propBinString :: ArbSignedInt32 -> Result
 propBinString (ArbSignedInt32 ui) =
-  let x = toStringAs bin ui
+  let x = toStringAs Bin ui
   in all (\d -> d == '1' || d == '0') (Str.toCharArray x)
     <?> "String representation of SignedInt contains not only digits 1 and 0: " <> x
 
 propBinStringEmptiness :: ArbSignedInt32 -> Result
 propBinStringEmptiness (ArbSignedInt32 ui) =
-  not Str.null (toStringAs bin ui)
+  not Str.null (toStringAs Bin ui)
     <?> "String representation of SignedInt must not be empty"
 
 propBinStringUniqness :: Array ArbSignedInt32 -> Result
 propBinStringUniqness as = A.length sts === A.length uis where
-  sts = A.nub $ map (toStringAs bin) uis
+  sts = A.nub $ map (toStringAs Bin) uis
   uis = A.nub $ map unwrap as
 
 propAddition :: ArbInt -> ArbInt -> Result

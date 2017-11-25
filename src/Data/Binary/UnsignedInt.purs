@@ -2,6 +2,7 @@ module Data.Binary.UnsignedInt
   ( UnsignedInt
   , fromInt
   , toInt
+  , divModUnsigned
   ) where
 
 import Prelude
@@ -11,14 +12,19 @@ import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary (class Binary, Bits(Bits), Overflow(NoOverflow), _0, _1)
 import Data.Binary as Bin
-import Data.Binary.BaseN (class BaseN, Radix(Radix), unsafeBitsAsChars)
-import Data.Maybe (Maybe(Just, Nothing))
+import Data.Binary.BaseN (class BaseN, Radix(..))
+import Data.Binary.BaseN as Base
+import Data.List ((!!))
+import Data.Map as Map
+import Data.Maybe (Maybe(Just, Nothing), fromJust)
 import Data.Newtype (class Newtype, unwrap)
 import Data.String as Str
-import Data.Tuple (Tuple(..), snd, uncurry)
+import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..), fst, snd, uncurry)
 import Data.Typelevel.Num (class GtEq, class Lt, class Pos, type (:*), D1, D16, D2, D31, D32, D5, D6, D64, D8)
 import Data.Typelevel.Num as Nat
 import Data.Typelevel.Undefined (undefined)
+import Partial.Unsafe (unsafePartial)
 
 
 type Uint8   = UnsignedInt D8
@@ -84,7 +90,7 @@ instance semiringUnsignedInt :: Pos b => Semiring (UnsignedInt b) where
     nBits = Nat.toInt (undefined :: b)
     rawResult = mulBits as bs
     numValues = Bits $ _1 : (A.replicate nBits _0)
-    (Tuple quo rem) = divMod rawResult numValues
+    (Tuple quo rem) = divModUnsigned rawResult numValues
     result = if Bin.isOdd quo then Bin.tail rem else rem
 
 half :: Bits -> Bits
@@ -103,27 +109,36 @@ mulBits x y =
 subtractBits :: Bits -> Bits -> Bits
 subtractBits as bs = uncurry Bin.subtractBits $ Bin.align as bs
 
-divMod :: Bits -> Bits -> Tuple Bits Bits
-divMod x _ | Bin.isZero x = Tuple Bin.zero Bin.zero
-divMod x y =
-  let inc a = Bin.addBits' _0 a Bin.one
-      t = divMod (half x) y
+-- Only for positive representations
+divModUnsigned :: Bits -> Bits -> Tuple Bits Bits
+divModUnsigned x _ | Bin.isZero x = Tuple x x
+divModUnsigned x y =
+  let t = divModUnsigned (half x) y
       (Tuple q r) = bimap double double t
-      r' = if Bin.isOdd x then inc r else r
+      r' = if Bin.isOdd x then increment r else r
   in if (UnsignedInt r' :: UnsignedInt D32) >= UnsignedInt y
-     then Tuple (inc q) (r' `subtractBits` y)
+     then Tuple (increment q) (r' `subtractBits` y)
      else Tuple q r'
+
+increment :: Bits -> Bits
+increment a = Bin.discardOverflow $ Bin.addBits _1 Bin.zero a
 
 instance ringUnsignedInt :: Pos b => Ring (UnsignedInt b) where
   sub (UnsignedInt as) (UnsignedInt bs) = UnsignedInt $ subtractBits as bs
 
 instance baseNUnsignedInt :: Pos b => BaseN (UnsignedInt b) where
-  toStringAs (Radix r) (UnsignedInt bits) | r == (Bits [_1, _0]) = Bin.toString bits
-  toStringAs (Radix r) (UnsignedInt bs) = Str.fromCharArray (req bs []) where
-    req bits acc | (UnsignedInt bits :: UnsignedInt b) < UnsignedInt r =
-      unsafeBitsAsChars bits <> acc
+  toStringAs r (UnsignedInt bs) | r == Bin = Bin.toString bs
+  toStringAs r (UnsignedInt bs) = Str.fromCharArray (req bs []) where
+    req bits acc | (UnsignedInt bits :: UnsignedInt b) < UnsignedInt (Base.toBits r) =
+      unsafeAsChars bits <> acc
     req bits acc =
-      let (Tuple quo rem) = bits `divMod` r
-      in req quo (unsafeBitsAsChars rem <> acc)
-
--- TODO: fromStringAs
+      let (Tuple quo rem) = bits `divModUnsigned` (Base.toBits r)
+      in req quo (unsafeAsChars rem <> acc)
+    unsafeAsChars bb = A.singleton $ unsafePartial $ fromJust $ chars !! Bin.unsafeBitsToInt bb
+    chars = Map.keys (Base.alphabet r)
+  fromStringAs radix str = fst <$> A.foldr f (Tuple zero one) <$> traverse t cs where
+    f i (Tuple r p) = Tuple (p * i + r) (p * base)
+    t = charToBits radix >=> Bin.tryFromBits
+    cs = Str.toCharArray str
+    charToBits r = flip Map.lookup (Base.alphabet radix)
+    base = UnsignedInt (Base.toBits radix)

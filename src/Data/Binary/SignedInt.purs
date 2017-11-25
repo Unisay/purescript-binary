@@ -8,17 +8,17 @@ module Data.Binary.SignedInt
   , toNumberAs
   ) where
 
-import Prelude hiding (div, mod)
-
-import Control.Monad.Eff.Console (log)
-import Control.Monad.Eff.Unsafe (unsafePerformEff)
 import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary (class Binary, Bit(Bit), Bits(Bits), Overflow(NoOverflow), _0, _1)
 import Data.Binary as Bin
-import Data.Binary.BaseN (class BaseN, Radix(Radix), toStringAs, unsafeBitsAsChars)
-import Data.Maybe (Maybe(Nothing, Just))
+import Data.Binary.BaseN (class BaseN, Radix(..), fromStringAs, toStringAs)
+import Data.Binary.BaseN as Base
+import Data.Binary.UnsignedInt (UnsignedInt, divModUnsigned)
+import Data.List ((!!))
+import Data.Map as Map
+import Data.Maybe (Maybe(Nothing, Just), fromJust)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Ord (abs)
 import Data.String as Str
@@ -27,6 +27,8 @@ import Data.Typelevel.Num (class GtEq, class LtEq, type (:*), D1, D16, D2, D32, 
 import Data.Typelevel.Num as Nat
 import Data.Typelevel.Num.Sets (class Pos)
 import Data.Typelevel.Undefined (undefined)
+import Partial.Unsafe (unsafePartial)
+import Prelude hiding (div,mod)
 
 
 type Int8   = SignedInt D8
@@ -198,21 +200,10 @@ divMod2c x _ | Bin.isZero x = Tuple x x
 divMod2c x y =
   let nx = isNegative x
       ny = isNegative y
-      (Tuple q r) = divModPositive (if nx then complementBits x else x)
+      (Tuple q r) = divModUnsigned (if nx then complementBits x else x)
                                    (if ny then complementBits y else y)
   in Tuple (if nx /= ny then complementBits q else q)
            (if nx then complementBits r else r)
-
--- Only for positive representations
-divModPositive :: Bits -> Bits -> Tuple Bits Bits
-divModPositive x _ | Bin.isZero x = Tuple x x
-divModPositive x y =
-  let t = divModPositive (half x) y
-      (Tuple q r) = bimap double double t
-      r' = if Bin.isOdd x then increment r else r
-  in if (SignedInt r' :: SignedInt D32) >= SignedInt y
-     then Tuple (increment q) (r' `subtractBits` y)
-     else Tuple q r'
 
 div :: Bits -> Bits -> Bits
 div a b = fst (divMod2c a b)
@@ -220,22 +211,24 @@ div a b = fst (divMod2c a b)
 mod :: Bits -> Bits -> Bits
 mod a b = snd (divMod2c a b)
 
-instance baseNSignedInt :: Pos a => BaseN (SignedInt a) where
-  toStringAs (Radix r) si@(SignedInt bits) | r == (Bits [_1, _0]) =
+instance baseNSignedInt :: Pos b => BaseN (SignedInt b) where
+  toStringAs r si@(SignedInt bits) | r == Bin =
     Bin.toString (compact bits) where
       compact b | Bin.msb b == _1 = Bin.one <> Bin.stripLeadingBit _1 b
       compact b = Bin.stripLeadingZeros b
-  toStringAs (Radix r) (SignedInt bs) = Str.fromCharArray (req bs []) where
-    req bits acc | (SignedInt bits :: SignedInt a) < SignedInt r =
-      unsafeBitsAsChars bits <> acc
+  toStringAs r (SignedInt bs) = Str.fromCharArray (req bs []) where
+    req bits acc | (SignedInt bits :: SignedInt b) < SignedInt (Base.toBits r) =
+      unsafeAsChars bits <> acc
     req bits acc =
-      let (Tuple quo rem) = bits `divMod2c` r
-      in req quo (unsafeBitsAsChars rem <> acc)
+      let (Tuple quo rem) = bits `divMod2c` (Base.toBits r)
+      in req quo (unsafeAsChars rem <> acc)
+    unsafeAsChars bb = A.singleton $ unsafePartial $ fromJust $ chars !! Bin.unsafeBitsToInt bb
+    chars = Map.keys (Base.alphabet r)
+  fromStringAs radix s | Str.take 1 s == "-" = complement <$> fromStringAs radix (Str.drop 1 s)
+  fromStringAs radix s = SignedInt <$> Bin.toBits <$> fromStringAs radix s :: Maybe (UnsignedInt b)
 
 -- | Like `toStringAs` but outputs `-` prefix instead of the two's complement
 toNumberAs :: ∀ a . Pos a => Radix -> SignedInt a -> String
 toNumberAs r si = if isNegative si
                   then "-" <> toStringAs r (complement si)
                   else toStringAs r si
-
-  -- TODO: fromStringAs

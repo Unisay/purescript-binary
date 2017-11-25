@@ -61,25 +61,6 @@ class Binary a where
   toBits :: a -> Bits
   tryFromBits :: Bits -> Maybe a
 
--- instance binaryInt :: Binary Int where
---   lsb i = intToBit $ Int.and i 1
---   msb i = intToBit $ Int.zshr i 31
---   and = Int.and
---   xor = Int.xor
---   or  = Int.or
---   not = Int.xor top
---   leftShift (Bit b) i = Tuple (msb i) res where
---     res = ifelse b 1 0 `or` Int.shl i 1
---   rightShift (Bit b) i = Tuple (lsb i) res where
---     res = ifelse b bottom 0 `or` Int.shr i 1
---   signedRightShift i = rightShift (intToBit $ Int.and bottom i) i
---   toBits = intBits >>> addLeadingBit 31 _0 >>> Bits where
---     intBits 0 = [_0]
---     intBits n | odd n     = A.snoc (intBits (n `div` 2)) _1
---               | otherwise = A.snoc (intBits (n `div` 2)) _0
---   tryFromBits (Bits bs) = Just $ get1 $ A.foldr f (Tuple 0 1) bs where
---     f b (Tuple r p) = Tuple (p * bitToInt b + r) (p * 2)
-
 instance binaryBit :: Binary Bit where
   lsb = id
   msb = id
