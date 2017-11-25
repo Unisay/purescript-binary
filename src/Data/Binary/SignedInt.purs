@@ -6,10 +6,9 @@ module Data.Binary.SignedInt
   , complement
   , flipSign
   , toNumberAs
-  , divMod
   ) where
 
-import Prelude
+import Prelude hiding (div, mod)
 
 import Control.Monad.Eff.Console (log)
 import Control.Monad.Eff.Unsafe (unsafePerformEff)
@@ -147,16 +146,18 @@ signAlign bas@(Bits as) bbs@(Bits bs) =
 instance semiringSignedInt :: Pos b => Semiring (SignedInt b) where
   zero = SignedInt Bin.zero
   add (SignedInt as) (SignedInt bs) = Bin.unsafeFromBits result where
-    nBits = Nat.toInt (undefined :: b)
-    result = wrapBitsOverflow nBits (Bin.addBits _0 as bs)
+    b = Nat.toInt (undefined :: b)
+    result = wrapBitsOverflow b (Bin.addBits _0 as bs)
     wrapBitsOverflow _ (NoOverflow bits) = bits
     wrapBitsOverflow n res =
-      let numValues = Bits (_1 : A.replicate n _0)
-      in Bin.tail $ subtractBits (Bin.extendOverflow res) numValues
+      let bigN = Bits (_1 : A.replicate n _0)
+      in Bin.tail $ subtractBits (Bin.extendOverflow res) bigN
   one = SignedInt Bin.one
-  mul m@(SignedInt mBits) (SignedInt rBits) = SignedInt $ res
+  mul m@(SignedInt mBits) (SignedInt rBits) = SignedInt sres
     where
-      res = iter rlen p
+      sres = Bin.drop (Bin.length res - b) res
+      res = iter rlen p `mod` Bits (_1 : A.replicate b _0)
+      b = Nat.toInt (undefined :: b)
       a = signExtend (1 + mlen) mBits <> Bin.zeroes (rlen + 1)
       s = nBits <> Bin.zeroes (rlen + 1)
       nBits = complementBits $ signExtend (1 + mlen) mBits
@@ -171,10 +172,6 @@ instance semiringSignedInt :: Pos b => Semiring (SignedInt b) where
         f (Bit false) (Bit true) = add t a
         f (Bit true) (Bit false) = add t s
         f _ _ = t
-
-
-dbg :: ∀ a . String -> a -> a
-dbg s a = let _ = unsafePerformEff (log s) in a
 
 instance ringSignedInt :: Pos b => Ring (SignedInt b) where
   sub (SignedInt as) (SignedInt bs) = SignedInt $ subtractBits as bs
@@ -196,21 +193,32 @@ half a = snd (signedRightShift a)
 subtractBits :: Bits -> Bits -> Bits
 subtractBits as bs = uncurry Bin.subtractBits $ signAlign as bs
 
-divMod :: Bits -> Bits -> Tuple Bits Bits
-divMod x _ | Bin.isZero x = Tuple Bin.zero Bin.zero
-divMod x y =
-  let t = divMod (half x) y
+divMod2c :: Bits -> Bits -> Tuple Bits Bits
+divMod2c x _ | Bin.isZero x = Tuple x x
+divMod2c x y =
+  let nx = isNegative x
+      ny = isNegative y
+      (Tuple q r) = divModPositive (if nx then complementBits x else x)
+                                   (if ny then complementBits y else y)
+  in Tuple (if nx /= ny then complementBits q else q)
+           (if nx then complementBits r else r)
+
+-- Only for positive representations
+divModPositive :: Bits -> Bits -> Tuple Bits Bits
+divModPositive x _ | Bin.isZero x = Tuple x x
+divModPositive x y =
+  let t = divModPositive (half x) y
       (Tuple q r) = bimap double double t
       r' = if Bin.isOdd x then increment r else r
-  in if (SignedInt r' :: SignedInt D64) >= SignedInt y
+  in if (SignedInt r' :: SignedInt D32) >= SignedInt y
      then Tuple (increment q) (r' `subtractBits` y)
      else Tuple q r'
 
 div :: Bits -> Bits -> Bits
-div a b = fst (divMod a b)
+div a b = fst (divMod2c a b)
 
 mod :: Bits -> Bits -> Bits
-mod a b = snd (divMod a b)
+mod a b = snd (divMod2c a b)
 
 instance baseNSignedInt :: Pos a => BaseN (SignedInt a) where
   toStringAs (Radix r) si@(SignedInt bits) | r == (Bits [_1, _0]) =
@@ -221,7 +229,7 @@ instance baseNSignedInt :: Pos a => BaseN (SignedInt a) where
     req bits acc | (SignedInt bits :: SignedInt a) < SignedInt r =
       unsafeBitsAsChars bits <> acc
     req bits acc =
-      let (Tuple quo rem) = bits `divMod` r
+      let (Tuple quo rem) = bits `divMod2c` r
       in req quo (unsafeBitsAsChars rem <> acc)
 
 -- | Like `toStringAs` but outputs `-` prefix instead of the two's complement

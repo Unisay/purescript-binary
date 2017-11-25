@@ -20,6 +20,7 @@ import Test.Arbitrary (ArbInt(..), ArbSignedInt32(ArbSignedInt32))
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
+import Imul (imul)
 
 spec :: ∀ e. TestSuite (random :: RANDOM, console :: CONSOLE | e)
 spec = suite "SignedInt" do
@@ -118,5 +119,3 @@ propMultiplication (ArbInt a) (ArbInt b) =
     expected = a `imul` b
     res = si a * si b
     si = fromInt d32
-
-foreign import imul :: Int -> Int -> Int
