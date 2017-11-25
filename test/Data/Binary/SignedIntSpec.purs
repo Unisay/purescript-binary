@@ -10,20 +10,22 @@ import Data.Array (foldr, replicate)
 import Data.Array as A
 import Data.Binary as Bin
 import Data.Binary.BaseN (Radix(..), toStringAs)
-import Data.Binary.SignedInt (fromInt, toInt, toNumberAs)
+import Data.Binary.SignedInt (SignedInt, fromInt, toInt, toNumberAs)
 import Data.Foldable (all)
 import Data.Int as Int
+import Data.List (List(..), (:))
 import Data.Newtype (unwrap)
 import Data.String as Str
 import Data.Typelevel.Num (class GtEq, class Pos, D32, d32, d99)
 import Imul (imul)
-import Test.Arbitrary (ArbInt(..), ArbSignedInt32(ArbSignedInt32))
+import Test.Arbitrary (ArbInt(..), ArbSemiringOp(..), ArbSignedInt32(ArbSignedInt32))
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 
 spec :: ∀ e. TestSuite (random :: RANDOM, console :: CONSOLE | e)
 spec = suite "SignedInt" do
+  test "number of bits" $ quickCheck propNumberOfBits
   test "fromInt" $ quickCheck (propFromInt d32)
   test "fromInt" $ quickCheck (propFromInt d99)
   test "number of bits is 32" $ quickCheck propBitSize
@@ -34,6 +36,25 @@ spec = suite "SignedInt" do
   test "toBinString produces unique representation" $ quickCheck propBinStringUniqness
   test "addition" $ quickCheck propAddition
   test "multiplication" $ quickCheck propMultiplication
+
+propNumberOfBits :: List ArbSignedInt32 ->
+                    List (ArbSemiringOp (SignedInt D32)) ->
+                    Result
+propNumberOfBits ints ops =
+  expected == actual
+    <?> "\nExpected:  " <> show expected
+    <>  "\nActual:    " <> show actual
+    <>  "\nInts:      " <> show ints
+    <>  "\nOps:       " <> show ops
+    <>  "\nRes:       " <> show res
+  where
+    expected = 32
+    actual = Bin.length $ Bin.toBits res
+    res = r ints ops zero
+    r Nil _ a = a
+    r _ Nil a = a
+    r ((ArbSignedInt32 i):is) ((ArbSemiringOp _ o):os) a = r is os (i `o` a)
+
 
 propFromInt :: ∀ b . Pos b => GtEq b D32 => b -> ArbInt -> Result
 propFromInt b (ArbInt i) =

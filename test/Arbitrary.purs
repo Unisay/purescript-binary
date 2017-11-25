@@ -4,10 +4,10 @@ import Prelude
 
 import Data.Array as A
 import Data.Binary (Bit(..), Bits(..), _0, _1)
-import Data.Binary.SignedInt as SI
 import Data.Binary.SignedInt (SignedInt)
-import Data.Binary.UnsignedInt as UI
+import Data.Binary.SignedInt as SI
 import Data.Binary.UnsignedInt (UnsignedInt)
+import Data.Binary.UnsignedInt as UI
 import Data.Int (toNumber)
 import Data.List (List(..), (:))
 import Data.Newtype (class Newtype, unwrap)
@@ -15,7 +15,7 @@ import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
 import Data.Typelevel.Num (D31, D32, d31, d32)
 import Test.QuickCheck (class Arbitrary, arbitrary)
-import Test.QuickCheck.Gen (Gen, chooseInt, frequency, sized, suchThat, vectorOf)
+import Test.QuickCheck.Gen (Gen, chooseInt, frequency, oneOf, sized, suchThat, vectorOf)
 
 newtype ArbInt4 = ArbInt4 Int
 instance arbitraryInt4 :: Arbitrary ArbInt4 where
@@ -49,6 +49,7 @@ instance arbitraryUnsignedInt31 :: Arbitrary ArbUnsignedInt31 where
     pure (UI.fromInt d31 a)
 
 newtype ArbSignedInt32 = ArbSignedInt32 (SignedInt D32)
+derive newtype instance showArbSignedInt32 :: Show ArbSignedInt32
 derive instance newtypeArbSignedInt32 :: Newtype ArbSignedInt32 _
 instance arbitrarySignedInt32 :: Arbitrary ArbSignedInt32 where
   arbitrary = ArbSignedInt32 <$> SI.fromInt d32 <$> arbitrary
@@ -89,3 +90,11 @@ instance arbitraryBits32 :: Arbitrary ArbBits32 where
          : Tuple 0.70 (vectorOf 32 arbBit)
          : Nil
     arbBit = unwrap <$> (arbitrary :: Gen ArbBit)
+
+data ArbSemiringOp a = ArbSemiringOp String (a -> a -> a)
+instance showArbitrarySemiringOp :: Show (ArbSemiringOp a)
+  where show (ArbSemiringOp s _) = s
+instance arbitrarySemiringOp :: Semiring a => Arbitrary (ArbSemiringOp a) where
+  arbitrary = oneOf (opAdd :| [ opMul ]) where
+    opAdd = pure $ ArbSemiringOp "+" add
+    opMul = pure $ ArbSemiringOp "*" mul

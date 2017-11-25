@@ -1,6 +1,8 @@
 module Data.Binary.SignedInt
   ( SignedInt
   , fromInt
+  , fromUnsigned
+  , tryFromUnsigned
   , toInt
   , isNegative
   , complement
@@ -23,7 +25,7 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Ord (abs)
 import Data.String as Str
 import Data.Tuple (Tuple(..), fst, snd, uncurry)
-import Data.Typelevel.Num (class GtEq, class LtEq, type (:*), D1, D16, D2, D32, D5, D6, D64, D8)
+import Data.Typelevel.Num (class GtEq, class Lt, class LtEq, type (:*), D1, D16, D2, D32, D5, D6, D64, D8)
 import Data.Typelevel.Num as Nat
 import Data.Typelevel.Num.Sets (class Pos)
 import Data.Typelevel.Undefined (undefined)
@@ -66,9 +68,6 @@ flipSign (SignedInt bits) =
       bs = Bits $ A.cons (Bin.not h) t
   in SignedInt bs
 
-unsafeIncrement :: Bits -> Bits
-unsafeIncrement = Bin.discardOverflow <<< Bin.addBits _1 Bin.zero
-
 complementBits :: Bits -> Bits
 complementBits = Bin.not >>> unsafeIncrement
 
@@ -86,6 +85,13 @@ fromInt b i = SignedInt signed where
     GT -> bits
     EQ -> complementBits bits
     LT -> complementBits (Bin.addLeadingZeros w bits)
+
+fromUnsigned :: ∀ a b . Pos a => Pos b => Lt a b => UnsignedInt a -> SignedInt b
+fromUnsigned u = SignedInt (Bin.addLeadingZeros b (Bin.toBits u))
+  where b = Nat.toInt (undefined :: b)
+
+tryFromUnsigned :: ∀ b . Pos b => UnsignedInt b -> Maybe (SignedInt b)
+tryFromUnsigned = Bin.toBits >>> Bin.stripLeadingZeros >>> Bin.tryFromBits
 
 toInt :: ∀ b . Pos b => LtEq b D32 => SignedInt b -> Int
 toInt si@(SignedInt bits) =
@@ -123,19 +129,6 @@ signExtend width (Bits bits) =
   let d = sub width (A.length bits)
   in Bits if d < 1 then bits else (A.replicate d _1) <> bits
 
-signShrink :: Int -> Bits -> Bits
-signShrink width bits@(Bits bs) =
-  if len <= width
-    then bits
-    else if h1 == h2
-           then signShrink (width - 1) t
-           else bits
-  where
-    h1 = Bin.head bits
-    h2 = Bin.head t
-    t = Bin.tail bits
-    len = Bin.length bits
-
 signAlign :: Bits -> Bits -> Tuple Bits Bits
 signAlign bas@(Bits as) bbs@(Bits bs) =
   case compare la lb of
@@ -146,7 +139,8 @@ signAlign bas@(Bits as) bbs@(Bits bs) =
         lb = A.length bs
 
 instance semiringSignedInt :: Pos b => Semiring (SignedInt b) where
-  zero = SignedInt Bin.zero
+  zero = SignedInt $ Bits $ A.replicate b _0 where
+    b = Nat.toInt (undefined :: b)
   add (SignedInt as) (SignedInt bs) = Bin.unsafeFromBits result where
     b = Nat.toInt (undefined :: b)
     result = wrapBitsOverflow b (Bin.addBits _0 as bs)
@@ -187,6 +181,9 @@ double = Bin.leftShift _0 >>> \(Tuple o (Bits bits)) -> Bits (A.cons o bits)
 increment :: Bits -> Bits
 increment a = Bin.discardOverflow $ Bin.addBits _1 Bin.zero a
 
+unsafeIncrement :: Bits -> Bits
+unsafeIncrement = Bin.discardOverflow <<< Bin.addBits _1 Bin.zero
+
 half :: Bits -> Bits
 -- | https://en.wikipedia.org/wiki/Arithmetic_shift#Non-equivalence_of_arithmetic_right_shift_and_division
 half a | isNegative a && Bin.isOdd a = half (increment a)
@@ -225,7 +222,7 @@ instance baseNSignedInt :: Pos b => BaseN (SignedInt b) where
     unsafeAsChars bb = A.singleton $ unsafePartial $ fromJust $ chars !! Bin.unsafeBitsToInt bb
     chars = Map.keys (Base.alphabet r)
   fromStringAs radix s | Str.take 1 s == "-" = complement <$> fromStringAs radix (Str.drop 1 s)
-  fromStringAs radix s = SignedInt <$> Bin.toBits <$> fromStringAs radix s :: Maybe (UnsignedInt b)
+  fromStringAs radix s = fromStringAs radix s >>= tryFromUnsigned
 
 -- | Like `toStringAs` but outputs `-` prefix instead of the two's complement
 toNumberAs :: ∀ a . Pos a => Radix -> SignedInt a -> String
