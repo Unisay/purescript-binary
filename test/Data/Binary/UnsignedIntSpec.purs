@@ -6,17 +6,18 @@ import Prelude
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
-import Data.Binary.BaseN (Radix(..), toStringAs)
+import Data.Binary.BaseN (Radix(..), fromStringAs, toStringAs)
 import Data.Binary.UnsignedInt (fromInt, toInt)
 import Data.Foldable (all)
 import Data.Int (toNumber)
 import Data.Int as Int
+import Data.Maybe (Maybe(Just))
 import Data.Newtype (unwrap)
 import Data.String as Str
 import Data.Tuple (Tuple(..))
 import Data.Typelevel.Num (class GtEq, class Pos, d31, d32, d99)
 import Data.Typelevel.Num.Aliases (D31)
-import Test.Arbitrary (ArbNonNegativeInt(ArbNonNegativeInt), ArbUnsignedInt31(ArbUnsignedInt31), NonOverflowingMultiplicands(..))
+import Test.Arbitrary (ArbNonNegativeInt(ArbNonNegativeInt), ArbRadix(ArbRadix), ArbUnsignedInt31(ArbUnsignedInt31), NonOverflowingMultiplicands(NonOverflowingMultiplicands))
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
@@ -31,6 +32,7 @@ spec = suite "UnsignedInt" do
   test "toBinString produces unique representation" $ quickCheck propBinStringUniqness
   test "addition" $ quickCheck propAddition
   test "multiplication" $ quickCheck propMultiplication
+  test "string roundtrip" $ quickCheck propStringRoundtrip
 
 
 propFromInt :: ∀ b . Pos b => GtEq b D31 => b -> ArbNonNegativeInt -> Result
@@ -58,8 +60,7 @@ propBinStringEmptiness (ArbUnsignedInt31 ui) =
 
 propBinStringUniqness :: Array ArbUnsignedInt31 -> Result
 propBinStringUniqness as = A.length sts === A.length uis where
-  sts = A.nub $ map (toStringAs Bin
-    ) uis
+  sts = A.nub $ map (toStringAs Bin) uis
   uis = A.nub $ map unwrap as
 
 propAddition :: ArbNonNegativeInt -> ArbNonNegativeInt -> Result
@@ -80,3 +81,13 @@ propAddition (ArbNonNegativeInt a) (ArbNonNegativeInt b) =
 propMultiplication :: NonOverflowingMultiplicands -> Result
 propMultiplication (NonOverflowingMultiplicands (Tuple a b)) =
   a * b === toInt (u a * u b) where u = fromInt d31
+
+propStringRoundtrip :: ArbUnsignedInt31 -> ArbRadix -> Result
+propStringRoundtrip (ArbUnsignedInt31 u) (ArbRadix radix) =
+  expected == actual
+    <?> "\nExpected:  " <> show expected
+    <>  "\nActual:    " <> show actual
+  where
+    expected = Just u
+    actual = fromStringAs radix s
+    s = toStringAs radix u

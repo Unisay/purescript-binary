@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Array as A
 import Data.Binary (Bit(..), Bits(..), _0, _1)
+import Data.Binary.BaseN (Radix(..))
 import Data.Binary.SignedInt (SignedInt)
 import Data.Binary.SignedInt as SI
 import Data.Binary.UnsignedInt (UnsignedInt)
@@ -15,13 +16,14 @@ import Data.NonEmpty ((:|))
 import Data.Tuple (Tuple(..))
 import Data.Typelevel.Num (D31, D32, d31, d32)
 import Test.QuickCheck (class Arbitrary, arbitrary)
-import Test.QuickCheck.Gen (Gen, chooseInt, frequency, oneOf, sized, suchThat, vectorOf)
+import Test.QuickCheck.Gen (Gen, chooseInt, elements, frequency, sized, suchThat, vectorOf)
 
 newtype ArbInt4 = ArbInt4 Int
 instance arbitraryInt4 :: Arbitrary ArbInt4 where
   arbitrary = ArbInt4 <$> chooseInt (-128) 127
 
 newtype ArbInt = ArbInt Int
+derive instance newtypeArbInt :: Newtype ArbInt _
 derive newtype instance eqArbInt :: Eq ArbInt
 instance arbitraryInt :: Arbitrary ArbInt where
   arbitrary = ArbInt <$> frequency gens where
@@ -52,7 +54,9 @@ newtype ArbSignedInt32 = ArbSignedInt32 (SignedInt D32)
 derive newtype instance showArbSignedInt32 :: Show ArbSignedInt32
 derive instance newtypeArbSignedInt32 :: Newtype ArbSignedInt32 _
 instance arbitrarySignedInt32 :: Arbitrary ArbSignedInt32 where
-  arbitrary = ArbSignedInt32 <$> SI.fromInt d32 <$> arbitrary
+  arbitrary = ArbSignedInt32 <$> do
+    (ArbInt i) <- arbitrary
+    pure (SI.fromInt d32 i)
 
 newtype NonOverflowingMultiplicands = NonOverflowingMultiplicands (Tuple Int Int)
 instance arbitraryNonOverflowingMultiplicands :: Arbitrary NonOverflowingMultiplicands where
@@ -95,6 +99,27 @@ data ArbSemiringOp a = ArbSemiringOp String (a -> a -> a)
 instance showArbitrarySemiringOp :: Show (ArbSemiringOp a)
   where show (ArbSemiringOp s _) = s
 instance arbitrarySemiringOp :: Semiring a => Arbitrary (ArbSemiringOp a) where
-  arbitrary = oneOf (opAdd :| [ opMul ]) where
-    opAdd = pure $ ArbSemiringOp "+" add
-    opMul = pure $ ArbSemiringOp "*" mul
+  arbitrary = elements (opAdd :| [ opMul ]) where
+    opAdd = ArbSemiringOp "+" add
+    opMul = ArbSemiringOp "*" mul
+
+newtype ArbHexChar = ArbHexChar Char
+derive instance newtypeArbHexChar :: Newtype ArbHexChar _
+derive newtype instance eqArbHexChar :: Eq ArbHexChar
+derive newtype instance showArbHexChar :: Show ArbHexChar
+instance arbitraryArbHexChar :: Arbitrary ArbHexChar where
+  arbitrary =
+    let chrs = ['a', 'b', 'c', 'd', 'e', 'f',
+                '1', '2', '3', '4', '5', '6', '7', '8', '9']
+    in elements $ ArbHexChar <$> '0' :| chrs
+
+newtype ArbOctChar = ArbOctChar Char
+derive instance newtypeArbOctChar :: Newtype ArbOctChar _
+derive newtype instance eqArbOctChar :: Eq ArbOctChar
+derive newtype instance showArbOctChar :: Show ArbOctChar
+instance arbitraryArbOctChar :: Arbitrary ArbOctChar where
+  arbitrary = elements $ ArbOctChar <$> '0' :| ['1', '2', '3', '4', '5', '6', '7']
+
+newtype ArbRadix = ArbRadix Radix
+instance arbitraryRadix :: Arbitrary ArbRadix where
+  arbitrary = elements $ ArbRadix <$> Bin :| [Oct, Dec, Hex]

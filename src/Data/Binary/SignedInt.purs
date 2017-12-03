@@ -3,11 +3,12 @@ module Data.Binary.SignedInt
   , fromInt
   , fromUnsigned
   , tryFromUnsigned
+  , unsafeToUnsigned
   , toInt
   , isNegative
   , complement
   , flipSign
-  , toNumberAs
+  , toString2c
   ) where
 
 import Data.Array ((:))
@@ -25,7 +26,7 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Ord (abs)
 import Data.String as Str
 import Data.Tuple (Tuple(..), fst, snd, uncurry)
-import Data.Typelevel.Num (class GtEq, class Lt, class LtEq, type (:*), D1, D16, D2, D32, D5, D6, D64, D8)
+import Data.Typelevel.Num (class Gt, class GtEq, class Lt, class LtEq, type (:*), D1, D16, D2, D32, D5, D6, D64, D8)
 import Data.Typelevel.Num as Nat
 import Data.Typelevel.Num.Sets (class Pos)
 import Data.Typelevel.Undefined (undefined)
@@ -93,6 +94,17 @@ fromUnsigned u = SignedInt (Bin.addLeadingZeros b (Bin.toBits u))
 tryFromUnsigned :: ∀ b . Pos b => UnsignedInt b -> Maybe (SignedInt b)
 tryFromUnsigned = Bin.toBits >>> Bin.stripLeadingZeros >>> Bin.tryFromBits
 
+tryToUnsigned :: ∀ b . Pos b => SignedInt b -> Maybe (UnsignedInt b)
+tryToUnsigned s | isNegative s = Nothing
+tryToUnsigned s = Bin.tryFromBits $ Bin.stripLeadingZeros $ Bin.toBits s
+
+unsafeToUnsigned :: ∀ b . Pos b => SignedInt b -> UnsignedInt b
+unsafeToUnsigned s = unsafePartial
+                   $ fromJust
+                   $ Bin.tryFromBits
+                   $ Bin.stripLeadingZeros
+                   $ Bin.toBits s
+
 toInt :: ∀ b . Pos b => LtEq b D32 => SignedInt b -> Int
 toInt si@(SignedInt bits) =
   if isNegative si
@@ -129,6 +141,14 @@ signExtend width (Bits bits) =
   let d = sub width (A.length bits)
   in Bits if d < 1 then bits else (A.replicate d _1) <> bits
 
+signSquash :: Int -> Bits -> Bits
+signSquash width bits | let l = Bin.length bits in l <= width || l < 3 =
+  bits
+signSquash width bits @ (Bits bs) =
+  if A.index bs 0 == A.index bs 1
+  then signSquash width (Bin.tail bits)
+  else bits
+
 signAlign :: Bits -> Bits -> Tuple Bits Bits
 signAlign bas@(Bits as) bbs@(Bits bs) =
   case compare la lb of
@@ -137,6 +157,13 @@ signAlign bas@(Bits as) bbs@(Bits bs) =
   GT -> Tuple bas (signExtend la bbs)
   where la = A.length as
         lb = A.length bs
+
+adjustWidth :: Int -> Bits -> Bits
+adjustWidth width bits =
+  case compare (Bin.length bits) width of
+  EQ -> bits
+  LT -> signExtend width bits
+  GT -> signSquash width bits
 
 instance semiringSignedInt :: Pos b => Semiring (SignedInt b) where
   zero = SignedInt $ Bits $ A.replicate b _0 where
@@ -192,6 +219,12 @@ half a = snd (signedRightShift a)
 subtractBits :: Bits -> Bits -> Bits
 subtractBits as bs = uncurry Bin.subtractBits $ signAlign as bs
 
+divMod :: ∀ b . Pos b => SignedInt b -> SignedInt b -> Tuple (SignedInt b) (SignedInt b)
+divMod (SignedInt dividend) (SignedInt divisor) =
+  bimap f f $ dividend `divMod2c` divisor where
+  f = adjustWidth b >>> SignedInt
+  b = Nat.toInt (undefined :: b)
+
 divMod2c :: Bits -> Bits -> Tuple Bits Bits
 divMod2c x _ | Bin.isZero x = Tuple x x
 divMod2c x y =
@@ -208,24 +241,23 @@ div a b = fst (divMod2c a b)
 mod :: Bits -> Bits -> Bits
 mod a b = snd (divMod2c a b)
 
-instance baseNSignedInt :: Pos b => BaseN (SignedInt b) where
-  toStringAs r si@(SignedInt bits) | r == Bin =
-    Bin.toString (compact bits) where
-      compact b | Bin.msb b == _1 = Bin.one <> Bin.stripLeadingBit _1 b
-      compact b = Bin.stripLeadingZeros b
-  toStringAs r (SignedInt bs) = Str.fromCharArray (req bs []) where
-    req bits acc | (SignedInt bits :: SignedInt b) < SignedInt (Base.toBits r) =
-      unsafeAsChars bits <> acc
-    req bits acc =
-      let (Tuple quo rem) = bits `divMod2c` (Base.toBits r)
-      in req quo (unsafeAsChars rem <> acc)
-    unsafeAsChars bb = A.singleton $ unsafePartial $ fromJust $ chars !! Bin.unsafeBitsToInt bb
-    chars = Map.keys (Base.alphabet r)
+instance baseNSignedInt :: (Pos b, Gt b D2) => BaseN (SignedInt b) where
   fromStringAs radix s | Str.take 1 s == "-" = complement <$> fromStringAs radix (Str.drop 1 s)
   fromStringAs radix s = fromStringAs radix s >>= tryFromUnsigned
+  toStringAs r si = if isNegative si then "-" <> s (complement si) else s si
+    where s = unsafeToUnsigned >>> toStringAs r
 
--- | Like `toStringAs` but outputs `-` prefix instead of the two's complement
-toNumberAs :: ∀ a . Pos a => Radix -> SignedInt a -> String
-toNumberAs r si = if isNegative si
-                  then "-" <> toStringAs r (complement si)
-                  else toStringAs r si
+-- | two's complement
+toString2c :: ∀ b . Pos b => Gt b D2 => Radix -> SignedInt b -> String
+toString2c r s = if r == Bin
+  then Bin.toString $ adjustWidth b $ Bin.toBits s
+  else Str.fromCharArray (req s [])
+  where
+  req si acc | si /= bottom && abs si < radix = unsafeAsChars si <> acc
+  req si acc = let (Tuple quo rem) = si `divMod` radix
+               in req quo (unsafeAsChars rem <> acc)
+  unsafeAsChars i = A.singleton $ unsafePartial $ fromJust $ mbChar $ Bin.toBits $ abs i
+  mbChar bb = chars !! Bin.unsafeBitsToInt bb
+  chars = Map.keys (Base.alphabet r)
+  radix = SignedInt (Bin.addLeadingZeros b (Base.toBits r))
+  b = Nat.toInt (undefined :: b)
