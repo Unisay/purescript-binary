@@ -7,7 +7,7 @@ import Prelude
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
 import Data.Binary.BaseN (Radix(..), fromStringAs, toStringAs)
-import Data.Binary.UnsignedInt (fromInt, toInt)
+import Data.Binary.UnsignedInt (UnsignedInt, asBits, fromInt, toInt, tryAsBits)
 import Data.Foldable (all)
 import Data.Int (toNumber)
 import Data.Int as Int
@@ -15,7 +15,7 @@ import Data.Maybe (Maybe(Just))
 import Data.Newtype (unwrap)
 import Data.String as Str
 import Data.Tuple (Tuple(..))
-import Data.Typelevel.Num (class GtEq, class Pos, d31, d32, d99)
+import Data.Typelevel.Num (class GtEq, class Pos, D42, d31, d32, d99)
 import Data.Typelevel.Num.Aliases (D31)
 import Test.Arbitrary (ArbNonNegativeInt(ArbNonNegativeInt), ArbRadix(ArbRadix), ArbUnsignedInt31(ArbUnsignedInt31), NonOverflowingMultiplicands(NonOverflowingMultiplicands))
 import Test.QuickCheck (Result, (<?>), (===))
@@ -27,6 +27,7 @@ spec = suite "UnsignedInt" do
   test "fromInt 32" $ quickCheck (propFromInt d32)
   test "fromInt 99" $ quickCheck (propFromInt d99)
   test "toInt" $ quickCheck propToInt
+  test "epanding bits doesn't loose data" $ quickCheck propBitExpansion
   test "toBinString contains only bin digits" $ quickCheck propBinString
   test "toBinString isn't empty" $ quickCheck propBinStringEmptiness
   test "toBinString produces unique representation" $ quickCheck propBinStringUniqness
@@ -46,6 +47,20 @@ propToInt (ArbUnsignedInt31 ui) =
   expected === actual where
     expected = Str.dropWhile (eq '0') (toStringAs Bin ui)
     actual = Int.toStringAs Int.binary (toInt ui)
+
+propBitExpansion :: ArbUnsignedInt31 -> Result
+propBitExpansion (ArbUnsignedInt31 ui) =
+  expected == actual
+    <?> "\nExpected:   " <> show expected
+    <>  "\nActual:     " <> show actual
+    <>  "\nUnsignedInt:" <> show ui
+  where
+    expected = Just ui
+    actual :: Maybe (UnsignedInt D31)
+    actual = tryAsBits expanded
+    expanded :: UnsignedInt D42
+    expanded = asBits ui
+
 
 propBinString :: ArbUnsignedInt31 -> Result
 propBinString (ArbUnsignedInt31 ui) =
