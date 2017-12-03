@@ -2,6 +2,8 @@ module Data.Binary.UnsignedInt
   ( UnsignedInt
   , fromInt
   , toInt
+  , asBits
+  , tryAsBits
   , divModUnsigned
   ) where
 
@@ -21,7 +23,7 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.String as Str
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd, uncurry)
-import Data.Typelevel.Num (class GtEq, class Lt, class Pos, type (:*), D1, D16, D2, D31, D32, D5, D6, D64, D8)
+import Data.Typelevel.Num (class Gt, class GtEq, class Lt, class Pos, type (:*), D1, D16, D2, D31, D32, D5, D6, D64, D8)
 import Data.Typelevel.Num as Nat
 import Data.Typelevel.Undefined (undefined)
 import Partial.Unsafe (unsafePartial)
@@ -57,6 +59,12 @@ fromInt _ i = UnsignedInt $ Bin.stripLeadingZeros $ Bin.intToBits i
 
 toInt :: ∀ b . Pos b => Lt b D32 => UnsignedInt b -> Int
 toInt ui@(UnsignedInt bits) = Bin.unsafeBitsToInt bits
+
+asBits :: ∀ a b . Pos a => Pos b => Lt a b => UnsignedInt a -> UnsignedInt b
+asBits (UnsignedInt a) = UnsignedInt a
+
+tryAsBits :: ∀ a b . Pos a => Pos b => Gt a b => UnsignedInt a -> Maybe (UnsignedInt b)
+tryAsBits (UnsignedInt a) = Bin.tryFromBits a
 
 instance binaryUnsignedInt :: Pos b => Binary (UnsignedInt b) where
   msb (UnsignedInt bits) = Bin.msb bits
