@@ -5,6 +5,8 @@ module Data.Binary.SignedInt
   , tryFromUnsigned
   , unsafeToUnsigned
   , toInt
+  , asBits
+  , tryAsBits
   , isNegative
   , complement
   , flipSign
@@ -21,7 +23,7 @@ import Data.Binary.BaseN as Base
 import Data.Binary.UnsignedInt (UnsignedInt, divModUnsigned)
 import Data.List ((!!))
 import Data.Map as Map
-import Data.Maybe (Maybe(Nothing, Just), fromJust)
+import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Ord (abs)
 import Data.String as Str
@@ -110,6 +112,19 @@ toInt si@(SignedInt bits) =
   if isNegative si
   then negate let (SignedInt bb) = complement si in Bin.unsafeBitsToInt bb
   else Bin.unsafeBitsToInt $ Bin.tail bits
+
+asBits :: ∀ a b . Pos a => Pos b => Lt a b => SignedInt a -> SignedInt b
+asBits (SignedInt bits) = SignedInt (signExtend b bits) where
+  b = Nat.toInt (undefined :: b)
+
+tryAsBits :: ∀ a b . Pos a => Pos b => Gt a b => SignedInt a -> Maybe (SignedInt b)
+tryAsBits (SignedInt bits) =
+  if Bin.length bs == b
+  then Just (SignedInt bs)
+  else Nothing
+ where
+  bs = signSquash b bits
+  b = Nat.toInt (undefined :: b)
 
 isNegative :: ∀ a . Binary a => a -> Boolean
 isNegative = Bin.msb >>> eq _1

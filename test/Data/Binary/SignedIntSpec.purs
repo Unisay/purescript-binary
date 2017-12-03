@@ -10,14 +10,14 @@ import Data.Array (foldr, replicate)
 import Data.Array as A
 import Data.Binary as Bin
 import Data.Binary.BaseN (Radix(..), fromStringAs, toStringAs)
-import Data.Binary.SignedInt (SignedInt, fromInt, toInt, toString2c)
+import Data.Binary.SignedInt (SignedInt, asBits, fromInt, toInt, toString2c, tryAsBits)
 import Data.Foldable (all)
 import Data.Int as Int
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Data.String as Str
-import Data.Typelevel.Num (class Gt, class GtEq, class Pos, D2, D32, d32, d99)
+import Data.Typelevel.Num (class Gt, class GtEq, class Pos, D2, D32, D42, d32, d99)
 import Imul (imul)
 import Prelude (compose, discard, id, map, negate, not, show, zero, ($), (*), (+), (<>), (==), (||))
 import Test.QuickCheck (Result, (<?>), (===))
@@ -30,6 +30,7 @@ spec = suite "SignedInt" do
   test "fromInt 32" $ quickCheck (propFromInt d32)
   test "fromInt 99" $ quickCheck (propFromInt d99)
   test "number of bits is 32" $ quickCheck propBitSize
+  test "expanding bits doesn't loose data" $ quickCheck propBitExpansion
   test "negation" $ quickCheck propNegation
   test "toBinString contains only bin digits" $ quickCheck propBinString
   test "toBinString isn't empty" $ quickCheck propBinStringEmptiness
@@ -68,6 +69,19 @@ propFromInt b (ArbInt i) =
     expected = Int.toStringAs Int.binary i
     actual = toStringAs Bin si
     si = fromInt b i
+
+propBitExpansion :: ArbSignedInt32 -> Result
+propBitExpansion (ArbSignedInt32 i) =
+  expected == actual
+    <?> "\nExpected:   " <> show expected
+    <>  "\nActual:     " <> show actual
+    <>  "\nSignedInt:  " <> show i
+  where
+    expected = Just i
+    actual :: Maybe (SignedInt D32)
+    actual = tryAsBits expanded
+    expanded :: SignedInt D42
+    expanded = asBits i
 
 propBitSize :: ArbSignedInt32 -> Result
 propBitSize (ArbSignedInt32 si) =

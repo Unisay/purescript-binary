@@ -27,7 +27,7 @@ spec = suite "UnsignedInt" do
   test "fromInt 32" $ quickCheck (propFromInt d32)
   test "fromInt 99" $ quickCheck (propFromInt d99)
   test "toInt" $ quickCheck propToInt
-  test "epanding bits doesn't loose data" $ quickCheck propBitExpansion
+  test "expanding bits doesn't loose data" $ quickCheck propBitExpansion
   test "toBinString contains only bin digits" $ quickCheck propBinString
   test "toBinString isn't empty" $ quickCheck propBinStringEmptiness
   test "toBinString produces unique representation" $ quickCheck propBinStringUniqness
@@ -60,7 +60,6 @@ propBitExpansion (ArbUnsignedInt31 ui) =
     actual = tryAsBits expanded
     expanded :: UnsignedInt D42
     expanded = asBits ui
-
 
 propBinString :: ArbUnsignedInt31 -> Result
 propBinString (ArbUnsignedInt31 ui) =
