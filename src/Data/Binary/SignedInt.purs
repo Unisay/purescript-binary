@@ -6,7 +6,9 @@ module Data.Binary.SignedInt
   , unsafeToUnsigned
   , toInt
   , asBits
+  , asBits'
   , tryAsBits
+  , tryAsBits'
   , isNegative
   , complement
   , flipSign
@@ -114,17 +116,22 @@ toInt si@(SignedInt bits) =
   else Bin.unsafeBitsToInt $ Bin.tail bits
 
 asBits :: ∀ a b . Pos a => Pos b => Lt a b => SignedInt a -> SignedInt b
-asBits (SignedInt bits) = SignedInt (signExtend b bits) where
-  b = Nat.toInt (undefined :: b)
+asBits = asBits' undefined
+
+asBits' :: ∀ a b . Pos a => Pos b => Lt a b => b -> SignedInt a -> SignedInt b
+asBits' b (SignedInt bits) = SignedInt (signExtend (Nat.toInt b) bits)
 
 tryAsBits :: ∀ a b . Pos a => Pos b => Gt a b => SignedInt a -> Maybe (SignedInt b)
-tryAsBits (SignedInt bits) =
+tryAsBits = tryAsBits' undefined
+
+tryAsBits' :: ∀ a b . Pos a => Pos b => Gt a b => b -> SignedInt a -> Maybe (SignedInt b)
+tryAsBits' natB (SignedInt bits) =
   if Bin.length bs == b
   then Just (SignedInt bs)
   else Nothing
  where
   bs = signSquash b bits
-  b = Nat.toInt (undefined :: b)
+  b = Nat.toInt natB
 
 isNegative :: ∀ a . Binary a => a -> Boolean
 isNegative = Bin.msb >>> eq _1

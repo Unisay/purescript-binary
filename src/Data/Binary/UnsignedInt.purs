@@ -3,7 +3,9 @@ module Data.Binary.UnsignedInt
   , fromInt
   , toInt
   , asBits
+  , asBits'
   , tryAsBits
+  , tryAsBits'
   , divModUnsigned
   ) where
 
@@ -61,10 +63,16 @@ toInt :: ∀ b . Pos b => Lt b D32 => UnsignedInt b -> Int
 toInt ui@(UnsignedInt bits) = Bin.unsafeBitsToInt bits
 
 asBits :: ∀ a b . Pos a => Pos b => Lt a b => UnsignedInt a -> UnsignedInt b
-asBits (UnsignedInt a) = UnsignedInt a
+asBits = asBits' undefined
+
+asBits' :: ∀ a b . Pos a => Pos b => Lt a b => b -> UnsignedInt a -> UnsignedInt b
+asBits' _ (UnsignedInt a) = UnsignedInt a
 
 tryAsBits :: ∀ a b . Pos a => Pos b => Gt a b => UnsignedInt a -> Maybe (UnsignedInt b)
-tryAsBits (UnsignedInt a) = Bin.tryFromBits a
+tryAsBits = tryAsBits' undefined
+
+tryAsBits' :: ∀ a b . Pos a => Pos b => Gt a b => b -> UnsignedInt a -> Maybe (UnsignedInt b)
+tryAsBits' _ (UnsignedInt a) = Bin.tryFromBits a
 
 instance binaryUnsignedInt :: Pos b => Binary (UnsignedInt b) where
   msb (UnsignedInt bits) = Bin.msb bits
