@@ -1,5 +1,6 @@
 module Data.Binary.UnsignedInt
   ( UnsignedInt
+  , magnitude
   , fromInt
   , toInt
   , asBits
@@ -50,6 +51,9 @@ instance ordUnsignedInt :: Pos b => Ord (UnsignedInt b) where
 instance showUnsignedInt :: Pos b => Show (UnsignedInt b) where
   show (UnsignedInt bits) =
     "UnsignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> Bin.toString bits
+
+magnitude :: ∀ b. UnsignedInt b -> b
+magnitude _ = undefined
 
 -- | Converts `Int` value to `UnsignedInt b` for b >= 31
 -- | Behavior for negative `Int` values is unspecified.

@@ -1,5 +1,6 @@
 module Data.Binary.SignedInt
   ( SignedInt
+  , magnitude
   , fromInt
   , fromUnsigned
   , tryFromUnsigned
@@ -64,6 +65,9 @@ instance ordSignedInt :: Pos b => Ord (SignedInt b) where
 instance showSignedInt :: Pos b => Show (SignedInt b) where
   show (SignedInt bits) =
     "SignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> Bin.toString bits
+
+magnitude :: ∀ b. SignedInt b -> b
+magnitude _ = undefined
 
 flipSign :: ∀ b. SignedInt b -> SignedInt b
 flipSign (SignedInt bits) =
