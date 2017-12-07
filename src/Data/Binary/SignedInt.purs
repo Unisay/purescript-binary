@@ -3,6 +3,7 @@ module Data.Binary.SignedInt
   , magnitude
   , fromInt
   , fromUnsigned
+  , fromUnsignedUnsafe
   , tryFromUnsigned
   , unsafeToUnsigned
   , toInt
@@ -95,6 +96,10 @@ fromInt b i = SignedInt signed where
 
 fromUnsigned :: ∀ a b . Pos a => Pos b => Lt a b => UnsignedInt a -> SignedInt b
 fromUnsigned u = SignedInt (Bin.addLeadingZeros b (Bin.toBits u))
+  where b = Nat.toInt (undefined :: b)
+
+fromUnsignedUnsafe :: ∀ a b . Pos a => Pos b => UnsignedInt a -> SignedInt b
+fromUnsignedUnsafe = Bin.toBits >>> Bin.take b >>> Bin.addLeadingZeros b >>> SignedInt
   where b = Nat.toInt (undefined :: b)
 
 tryFromUnsigned :: ∀ b . Pos b => UnsignedInt b -> Maybe (SignedInt b)
