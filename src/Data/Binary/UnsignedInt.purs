@@ -15,7 +15,7 @@ import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary (class Binary, Bits(Bits), Overflow(NoOverflow), _0, _1)
 import Data.Binary as Bin
-import Data.Binary.BaseN (class BaseN, Radix(..))
+import Data.Binary.BaseN (class BaseN, Radix(Bin))
 import Data.Binary.BaseN as Base
 import Data.List ((!!))
 import Data.Map as Map
@@ -148,6 +148,7 @@ instance baseNUnsignedInt :: Pos b => BaseN (UnsignedInt b) where
       in req quo (unsafeAsChars rem <> acc)
     unsafeAsChars bb = A.singleton $ unsafePartial $ fromJust $ chars !! Bin.unsafeBitsToInt bb
     chars = Map.keys (Base.alphabet r)
+  fromStringAs _ "" = Nothing
   fromStringAs radix str = fst <$> A.foldr f (Tuple zero one) <$> traverse t cs where
     f i (Tuple r p) = Tuple (p * i + r) (p * base)
     t = charToBits radix >=> Bin.tryFromBits
