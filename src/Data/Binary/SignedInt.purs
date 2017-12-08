@@ -5,7 +5,8 @@ module Data.Binary.SignedInt
   , fromUnsigned
   , fromUnsignedUnsafe
   , tryFromUnsigned
-  , unsafeToUnsigned
+  , toUnsigned
+  , positiveToUnsigned
   , toInt
   , asBits
   , tryAsBits
@@ -15,16 +16,15 @@ module Data.Binary.SignedInt
   , toString2c
   ) where
 
+import Prelude hiding (div,mod)
+
 import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
 import Data.Binary (class Binary, Bit(Bit), Bits(Bits), Overflow(NoOverflow), _0, _1)
 import Data.Binary as Bin
-import Data.Binary.BaseN (class BaseN, Radix(..), fromStringAs, toStringAs)
-import Data.Binary.BaseN as Base
+import Data.Binary.BaseN (class BaseN, Radix, fromStringAs, toStringAs)
 import Data.Binary.UnsignedInt (UnsignedInt, divModUnsigned)
-import Data.List ((!!))
-import Data.Map as Map
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Ord (abs)
@@ -35,7 +35,6 @@ import Data.Typelevel.Num as Nat
 import Data.Typelevel.Num.Sets (class Pos)
 import Data.Typelevel.Undefined (undefined)
 import Partial.Unsafe (unsafePartial)
-import Prelude hiding (div,mod)
 
 
 type Int8   = SignedInt D8
@@ -94,7 +93,7 @@ fromInt b i = SignedInt signed where
     EQ -> complementBits bits
     LT -> complementBits (Bin.addLeadingZeros w bits)
 
-fromUnsigned :: ∀ a b . Pos a => Pos b => Lt a b => UnsignedInt a -> SignedInt b
+fromUnsigned :: ∀ a b . Pos a => Pos b => Gt b D2 => Lt a b => UnsignedInt a -> SignedInt b
 fromUnsigned u = SignedInt (Bin.addLeadingZeros b (Bin.toBits u))
   where b = Nat.toInt (undefined :: b)
 
@@ -105,16 +104,16 @@ fromUnsignedUnsafe = Bin.toBits >>> Bin.take b >>> Bin.addLeadingZeros b >>> Sig
 tryFromUnsigned :: ∀ b . Pos b => UnsignedInt b -> Maybe (SignedInt b)
 tryFromUnsigned = Bin.toBits >>> Bin.stripLeadingZeros >>> Bin.tryFromBits
 
-tryToUnsigned :: ∀ b . Pos b => SignedInt b -> Maybe (UnsignedInt b)
-tryToUnsigned s | isNegative s = Nothing
-tryToUnsigned s = Bin.tryFromBits $ Bin.stripLeadingZeros $ Bin.toBits s
+positiveToUnsigned :: ∀ b . Pos b => SignedInt b -> Maybe (UnsignedInt b)
+positiveToUnsigned s | isNegative s = Nothing
+positiveToUnsigned s = Bin.tryFromBits $ Bin.stripLeadingZeros $ Bin.toBits s
 
-unsafeToUnsigned :: ∀ b . Pos b => SignedInt b -> UnsignedInt b
-unsafeToUnsigned s = unsafePartial
-                   $ fromJust
-                   $ Bin.tryFromBits
-                   $ Bin.stripLeadingZeros
-                   $ Bin.toBits s
+toUnsigned :: ∀ b . Pos b => SignedInt b -> UnsignedInt b
+toUnsigned s = unsafePartial
+  $ fromJust
+  $ Bin.tryFromBits
+  $ Bin.stripLeadingZeros
+  $ Bin.toBits s
 
 toInt :: ∀ b . Pos b => LtEq b D32 => SignedInt b -> Int
 toInt si@(SignedInt bits) =
@@ -265,23 +264,14 @@ div a b = fst (divMod2c a b)
 mod :: Bits -> Bits -> Bits
 mod a b = snd (divMod2c a b)
 
-instance baseNSignedInt :: (Pos b, Gt b D2) => BaseN (SignedInt b) where
+instance baseNSignedInt :: Pos b => BaseN (SignedInt b) where
   fromStringAs radix s | Str.take 1 s == "-" = complement <$> fromStringAs radix (Str.drop 1 s)
   fromStringAs radix s = fromStringAs radix s >>= tryFromUnsigned
-  toStringAs r si = if isNegative si then "-" <> s (complement si) else s si
-    where s = unsafeToUnsigned >>> toStringAs r
+  toStringAs r si =
+    if isNegative si
+    then "-" <> toString2c r (complement si)
+    else toString2c r si
 
 -- | two's complement
-toString2c :: ∀ b . Pos b => Gt b D2 => Radix -> SignedInt b -> String
-toString2c r s = if r == Bin
-  then Bin.toString $ adjustWidth b $ Bin.toBits s
-  else Str.fromCharArray (req s [])
-  where
-  req si acc | si /= bottom && abs si < radix = unsafeAsChars si <> acc
-  req si acc = let (Tuple quo rem) = si `divMod` radix
-               in req quo (unsafeAsChars rem <> acc)
-  unsafeAsChars i = A.singleton $ unsafePartial $ fromJust $ mbChar $ Bin.toBits $ abs i
-  mbChar bb = chars !! Bin.unsafeBitsToInt bb
-  chars = Map.keys (Base.alphabet r)
-  radix = SignedInt (Bin.addLeadingZeros b (Base.toBits r))
-  b = Nat.toInt (undefined :: b)
+toString2c :: ∀ b . Pos b => Radix -> SignedInt b -> String
+toString2c r s = toStringAs r (toUnsigned s)
