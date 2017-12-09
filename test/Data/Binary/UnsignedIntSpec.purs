@@ -33,7 +33,7 @@ spec = suite "UnsignedInt" do
   test "toBinString produces unique representation" $ quickCheck propBinStringUniqness
   test "addition" $ quickCheck propAddition
   test "multiplication" $ quickCheck propMultiplication
-  test "string roundtrip" $ quickCheck propStringRoundtrip
+  test "baseN roundtrip" $ quickCheck propBaseNRoundtrip
 
 
 propFromInt :: ∀ b . Pos b => GtEq b D31 => b -> ArbNonNegativeInt -> Result
@@ -96,8 +96,8 @@ propMultiplication :: NonOverflowingMultiplicands -> Result
 propMultiplication (NonOverflowingMultiplicands (Tuple a b)) =
   a * b === toInt (u a * u b) where u = fromInt d31
 
-propStringRoundtrip :: ArbUnsignedInt31 -> ArbRadix -> Result
-propStringRoundtrip (ArbUnsignedInt31 u) (ArbRadix radix) =
+propBaseNRoundtrip :: ArbUnsignedInt31 -> ArbRadix -> Result
+propBaseNRoundtrip (ArbUnsignedInt31 u) (ArbRadix radix) =
   expected == actual
     <?> "\nExpected:  " <> show expected
     <>  "\nActual:    " <> show actual

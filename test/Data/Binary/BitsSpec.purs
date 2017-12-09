@@ -1,5 +1,7 @@
 module Data.Binary.Bits.Spec (spec) where
 
+import Prelude hiding (add)
+
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
 import Data.Binary (Bits(Bits), _0)
@@ -8,7 +10,6 @@ import Data.Foldable (all)
 import Data.Maybe (Maybe(Just))
 import Data.String as Str
 import Data.Tuple (Tuple(..), fst)
-import Prelude hiding (add)
 import Test.Arbitrary (ArbBit(ArbBit), ArbBits(ArbBits), ArbNonNegativeInt(ArbNonNegativeInt))
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
@@ -20,7 +21,7 @@ spec = suite "Bits" do
   test "stripLeadingZeros" $ quickCheck propStripLeadingZeros
   test "toBinString contains only 0 and 1" $ quickCheck propHasBinDigits
   test "toBits >>> fromBits" $ quickCheck propBitsRoundtrip
-  test "toBinString >>> fromBinString" $ quickCheck propStringRoundtrip
+  test "toString >>> fromString" $ quickCheck propStringRoundtrip
   test "left shift" $ quickCheck propLeftShift
   test "right shift" $ quickCheck propRightShift
   test "least significant bit" $ quickCheck propLsb

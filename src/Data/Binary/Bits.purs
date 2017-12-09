@@ -1,6 +1,7 @@
 module Data.Binary.Bits
   ( Bits(..)
   , toString
+  , fromString
   , zero
   , zeroes
   , one
@@ -25,19 +26,21 @@ module Data.Binary.Bits
   , unsafeBitsToInt
   ) where
 
+import Prelude hiding (zero)
+
 import Control.Plus (empty)
 import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary.Bit (Bit(..), _0, _1, bitToChar, bitToInt)
+import Data.Binary.Bit (Bit(..), _0, _1, bitToChar, bitToInt, charToBit)
 import Data.Binary.Overflow (Overflow(..), discardOverflow, makeOverflow, overflowBit)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Ord (abs)
 import Data.String as Str
+import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, uncurry)
-import Prelude hiding (zero)
 
 newtype Bits = Bits (Array Bit)
 derive instance newtypeBits :: Newtype Bits _
@@ -46,7 +49,10 @@ derive newtype instance showBits :: Show Bits
 derive newtype instance semigroupBits :: Semigroup Bits
 
 toString :: Bits -> String
-toString (Bits bits) = Str.fromCharArray $ map bitToChar bits
+toString = unwrap >>> map bitToChar >>> Str.fromCharArray
+
+fromString :: String -> Maybe Bits
+fromString = Str.toCharArray >>> traverse charToBit >>> map Bits
 
 -- | align length by adding zeroes from the left
 align :: Bits -> Bits -> Tuple Bits Bits

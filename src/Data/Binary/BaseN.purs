@@ -11,7 +11,7 @@ module Data.Binary.BaseN
 import Prelude
 
 import Data.Binary.Bit (_0, _1)
-import Data.Binary.Bits (Bits(..))
+import Data.Binary.Bits (Bits(Bits))
 import Data.Map (Map, fromFoldable)
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple(..))
