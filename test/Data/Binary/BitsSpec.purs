@@ -46,7 +46,7 @@ propStripLeadingZeros (ArbBits bs) =
 
 propHasBinDigits :: ArbBits -> Result
 propHasBinDigits (ArbBits bs) =
-  (all (\d -> d == '1' || d == '0') $ Str.toCharArray (Bin.toString bs))
+  (all (\d -> d == '1' || d == '0') $ Str.toCharArray (Bin.toBinString bs))
     <?> "String representation of Byte Array contains not only digits 1 and 0"
 
 propBitsRoundtrip :: ArbBits -> Result
@@ -56,7 +56,7 @@ propBitsRoundtrip (ArbBits bs) =
 
 propStringRoundtrip :: ArbBits -> Result
 propStringRoundtrip (ArbBits bs) =
-  Just bs === Bin.tryFromBinStringElastic (Bin.toString bs)
+  Just bs === Bin.tryFromBinStringElastic (Bin.toBinString bs)
 
 propLeftShift :: ArbBit -> ArbBits -> Result
 propLeftShift (ArbBit bit) (ArbBits bits) =

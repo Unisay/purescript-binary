@@ -10,11 +10,10 @@ module Data.Binary.UnsignedInt
 
 import Prelude
 
-import Control.Plus (empty)
-import Data.Array (concat, (:))
+import Data.Array ((:))
 import Data.Array as A
 import Data.Bifunctor (bimap)
-import Data.Binary (class Binary, Bit(..), Bits(Bits), Overflow(NoOverflow), _0, _1, tryFromBits)
+import Data.Binary (class Binary, Bits(Bits), Overflow(NoOverflow), _0, _1, tryFromBits)
 import Data.Binary as Bin
 import Data.Binary.BaseN (class BaseN, Radix(Hex, Oct, Bin))
 import Data.Binary.BaseN as Base
@@ -29,7 +28,6 @@ import Data.Typelevel.Num (class Gt, class GtEq, class Lt, class Pos, type (:*),
 import Data.Typelevel.Num as Nat
 import Data.Typelevel.Undefined (undefined)
 import Partial.Unsafe (unsafePartial)
-import Unsafe.Coerce (unsafeCoerce)
 
 
 type Uint8   = UnsignedInt D8
@@ -52,7 +50,7 @@ instance ordUnsignedInt :: Pos b => Ord (UnsignedInt b) where
 
 instance showUnsignedInt :: Pos b => Show (UnsignedInt b) where
   show (UnsignedInt bits) =
-    "UnsignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> Bin.toString bits
+    "UnsignedInt" <> show (Nat.toInt (undefined :: b)) <> "#" <> Bin.toBinString bits
 
 magnitude :: ∀ b. UnsignedInt b -> b
 magnitude _ = undefined
@@ -141,55 +139,10 @@ instance ringUnsignedInt :: Pos b => Ring (UnsignedInt b) where
   sub (UnsignedInt as) (UnsignedInt bs) = UnsignedInt $ subtractBits as bs
 
 
-bitsToStringAs :: Int -> (Array Bit -> Char) -> Bits -> String
-bitsToStringAs nb dict (Bits bts) = Str.fromCharArray (rec nb dict bts empty)
-  where
-  rec :: Int -> (Array Bit -> Char) -> Array Bit -> Array Char -> Array Char
-  rec _ _ [] acc = acc
-  rec n f bits acc = rec n f (A.dropEnd n bits) (f nBits : acc) where
-    nBits = let bs = A.takeEnd n bits
-                d = n - A.length bs
-            in if d > 0 then A.replicate d _0 <> bs else bs
-
-stringToBits :: ∀ b . Pos b => (Char -> Maybe (Array Bit)) -> String -> Maybe (UnsignedInt b)
-stringToBits f = tryToBits >=> tryFromBits where
-  tryToBits = Str.toCharArray >>> traverse f >>> map (concat >>> Bits)
-
 instance baseNUnsignedInt :: Pos b => BaseN (UnsignedInt b) where
-  toStringAs Bin (UnsignedInt bits) = Bin.toString bits
-
-  toStringAs Oct (UnsignedInt bits) = bitsToStringAs 3 f bits
-    where
-    f [(Bit false),(Bit false),(Bit false)] = '0'
-    f [(Bit false),(Bit false),(Bit true )] = '1'
-    f [(Bit false),(Bit true ),(Bit false)] = '2'
-    f [(Bit false),(Bit true ),(Bit true )] = '3'
-    f [(Bit true ),(Bit false),(Bit false)] = '4'
-    f [(Bit true ),(Bit false),(Bit true )] = '5'
-    f [(Bit true ),(Bit true ),(Bit false)] = '6'
-    f [(Bit true ),(Bit true ),(Bit true )] = '7'
-    f bs = unsafeCoerce bs
-
-  toStringAs Hex (UnsignedInt bits) = bitsToStringAs 4 f bits
-    where
-    f [(Bit false),(Bit false),(Bit false),(Bit false)] = '0'
-    f [(Bit false),(Bit false),(Bit false),(Bit true )] = '1'
-    f [(Bit false),(Bit false),(Bit true ),(Bit false)] = '2'
-    f [(Bit false),(Bit false),(Bit true ),(Bit true )] = '3'
-    f [(Bit false),(Bit true ),(Bit false),(Bit false)] = '4'
-    f [(Bit false),(Bit true ),(Bit false),(Bit true )] = '5'
-    f [(Bit false),(Bit true ),(Bit true ),(Bit false)] = '6'
-    f [(Bit false),(Bit true ),(Bit true ),(Bit true )] = '7'
-    f [(Bit true ),(Bit false),(Bit false),(Bit false)] = '8'
-    f [(Bit true ),(Bit false),(Bit false),(Bit true )] = '9'
-    f [(Bit true ),(Bit false),(Bit true ),(Bit false)] = 'a'
-    f [(Bit true ),(Bit false),(Bit true ),(Bit true )] = 'b'
-    f [(Bit true ),(Bit true ),(Bit false),(Bit false)] = 'c'
-    f [(Bit true ),(Bit true ),(Bit false),(Bit true )] = 'd'
-    f [(Bit true ),(Bit true ),(Bit true ),(Bit false)] = 'e'
-    f [(Bit true ),(Bit true ),(Bit true ),(Bit true )] = 'f'
-    f bs = unsafeCoerce bs
-
+  toStringAs Bin (UnsignedInt bits) = Bin.toBinString bits
+  toStringAs Oct (UnsignedInt bits) = Bin.toOctString bits
+  toStringAs Hex (UnsignedInt bits) = Bin.toHexString bits
   toStringAs r (UnsignedInt bs) = Str.fromCharArray (req bs []) where -- TODO better decimal converion using doubling method
     req bits acc | (UnsignedInt bits :: UnsignedInt b) < UnsignedInt (Base.toBits r) =
       unsafeAsChars bits <> acc
@@ -200,39 +153,9 @@ instance baseNUnsignedInt :: Pos b => BaseN (UnsignedInt b) where
     chars = Map.keys (Base.alphabet r)
 
   fromStringAs _ "" = Nothing
-
-  fromStringAs Bin s = Bin.fromString s >>= tryFromBits
-
-  fromStringAs Oct s = stringToBits f s where
-    f '0' = Just [_0,_0,_0]
-    f '1' = Just [_0,_0,_1]
-    f '2' = Just [_0,_1,_0]
-    f '3' = Just [_0,_1,_1]
-    f '4' = Just [_1,_0,_0]
-    f '5' = Just [_1,_0,_1]
-    f '6' = Just [_1,_1,_0]
-    f '7' = Just [_1,_1,_1]
-    f _   = Nothing
-
-  fromStringAs Hex s = stringToBits f s where
-    f '0' = Just [_0,_0,_0,_0]
-    f '1' = Just [_0,_0,_0,_1]
-    f '2' = Just [_0,_0,_1,_0]
-    f '3' = Just [_0,_0,_1,_1]
-    f '4' = Just [_0,_1,_0,_0]
-    f '5' = Just [_0,_1,_0,_1]
-    f '6' = Just [_0,_1,_1,_0]
-    f '7' = Just [_0,_1,_1,_1]
-    f '8' = Just [_1,_0,_0,_0]
-    f '9' = Just [_1,_0,_0,_1]
-    f 'a' = Just [_1,_0,_1,_0]
-    f 'b' = Just [_1,_0,_1,_1]
-    f 'c' = Just [_1,_1,_0,_0]
-    f 'd' = Just [_1,_1,_0,_1]
-    f 'e' = Just [_1,_1,_1,_0]
-    f 'f' = Just [_1,_1,_1,_1]
-    f _   = Nothing
-
+  fromStringAs Bin s = Bin.fromBinString s >>= tryFromBits
+  fromStringAs Oct s = Bin.fromOctString s >>= tryFromBits
+  fromStringAs Hex s = Bin.fromHexString s >>= tryFromBits
   fromStringAs radix str = fst <$> A.foldr f (Tuple zero one) <$> traverse t cs where
     f i (Tuple r p) = Tuple (p * i + r) (p * base)
     t = charToBits radix >=> Bin.tryFromBits
