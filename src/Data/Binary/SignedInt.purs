@@ -1,6 +1,7 @@
 module Data.Binary.SignedInt
   ( SignedInt
   , magnitude
+  , takeSignedInt
   , fromInt
   , fromUnsigned
   , fromUnsignedUnsafe
@@ -80,6 +81,10 @@ complementBits = Bin.not >>> unsafeIncrement
 
 complement :: ∀ b . SignedInt b -> SignedInt b
 complement = unwrap >>> complementBits >>> SignedInt
+
+takeSignedInt :: ∀ b . Pos b => Gt b D2 => Bits -> SignedInt b
+takeSignedInt = Bin.take b >>> signExtend b >>> SignedInt
+  where b = Nat.toInt (undefined :: b)
 
 -- | Converts `Int` value to `SignedInt b` for b >= 31
 fromInt :: ∀ b . Pos b => GtEq b D32 => b -> Int -> SignedInt b

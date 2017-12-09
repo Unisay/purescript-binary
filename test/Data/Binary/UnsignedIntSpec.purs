@@ -6,8 +6,9 @@ import Prelude
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Array as A
+import Data.Binary as Bin
 import Data.Binary.BaseN (Radix(..), fromStringAs, toStringAs)
-import Data.Binary.UnsignedInt (UnsignedInt, asBits, fromInt, toInt, tryAsBits)
+import Data.Binary.UnsignedInt (UnsignedInt, asBits, fromInt, takeUnsignedInt, toInt, tryAsBits)
 import Data.Foldable (all)
 import Data.Int (toNumber)
 import Data.Int as Int
@@ -15,15 +16,16 @@ import Data.Maybe (Maybe(Just))
 import Data.Newtype (unwrap)
 import Data.String as Str
 import Data.Tuple (Tuple(..))
-import Data.Typelevel.Num (class GtEq, class Pos, D42, d31, d32, d99)
+import Data.Typelevel.Num (class GtEq, class Pos, D42, D32, d31, d32, d99)
 import Data.Typelevel.Num.Aliases (D31)
-import Test.Arbitrary (ArbNonNegativeInt(ArbNonNegativeInt), ArbRadix(ArbRadix), ArbUnsignedInt31(ArbUnsignedInt31), NonOverflowingMultiplicands(NonOverflowingMultiplicands))
+import Test.Arbitrary (ArbBits(..), ArbNonNegativeInt(ArbNonNegativeInt), ArbRadix(ArbRadix), ArbUnsignedInt31(ArbUnsignedInt31), NonOverflowingMultiplicands(NonOverflowingMultiplicands))
 import Test.QuickCheck (Result, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "UnsignedInt" do
+  test "take UnsignedInt from bits" $ quickCheck propTakeFromBits
   test "fromInt 32" $ quickCheck (propFromInt d32)
   test "fromInt 99" $ quickCheck (propFromInt d99)
   test "toInt" $ quickCheck propToInt
@@ -35,6 +37,18 @@ spec = suite "UnsignedInt" do
   test "multiplication" $ quickCheck propMultiplication
   test "baseN roundtrip" $ quickCheck propBaseNRoundtrip
 
+propTakeFromBits :: ArbBits -> Result
+propTakeFromBits (ArbBits bits) =
+  expected == actual
+    <?> "\nExpected:    " <> show expected
+    <>  "\nActual:      " <> show actual
+    <>  "\nUnsignedInt: " <> show ui
+    <>  "\nBits:        " <> show bits
+  where
+    expected = Bin.tryFromBits (Bin.take 32 bits)
+    actual = Just ui
+    ui :: UnsignedInt D32
+    ui = takeUnsignedInt bits
 
 propFromInt :: ∀ b . Pos b => GtEq b D31 => b -> ArbNonNegativeInt -> Result
 propFromInt b (ArbNonNegativeInt i) =

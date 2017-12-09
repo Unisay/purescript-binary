@@ -10,7 +10,7 @@ import Data.Array (foldr, replicate)
 import Data.Array as A
 import Data.Binary as Bin
 import Data.Binary.BaseN (Radix(..), fromStringAs, toStringAs)
-import Data.Binary.SignedInt (SignedInt, asBits, fromInt, toInt, toString2c, tryAsBits)
+import Data.Binary.SignedInt (SignedInt, asBits, fromInt, takeSignedInt, toInt, toString2c, tryAsBits)
 import Data.Foldable (all)
 import Data.Int as Int
 import Data.List (List(..), (:))
@@ -27,6 +27,7 @@ import Test.Unit.QuickCheck (quickCheck)
 spec :: ∀ e. TestSuite (random :: RANDOM, console :: CONSOLE | e)
 spec = suite "SignedInt" do
   test "number of bits" $ quickCheck propNumberOfBits
+  test "take SignedInt from bits" $ quickCheck propTakeSignedInt
   test "fromInt 32" $ quickCheck (propFromInt d32)
   test "fromInt 99" $ quickCheck (propFromInt d99)
   test "number of bits is 32" $ quickCheck propBitSize
@@ -57,6 +58,19 @@ propNumberOfBits ints ops =
     r Nil _ a = a
     r _ Nil a = a
     r ((ArbSignedInt32 i):is) ((ArbSemiringOp _ o):os) a = r is os (i `o` a)
+
+propTakeSignedInt :: ArbBits -> Result
+propTakeSignedInt (ArbBits bits) =
+  expected == actual
+    <?> "\nExpected:   " <> show expected
+    <>  "\nActual:     " <> show actual
+    <>  "\nSignedInt:  " <> show si
+  where
+    expected = 32
+    actual = Bin.length bits'
+    bits' = Bin.toBits si
+    si :: SignedInt D32
+    si = takeSignedInt bits
 
 propFromInt :: ∀ b . Pos b => Gt b D2 => GtEq b D32 => b -> ArbInt -> Result
 propFromInt b (ArbInt i) =

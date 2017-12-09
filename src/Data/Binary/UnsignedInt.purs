@@ -1,6 +1,7 @@
 module Data.Binary.UnsignedInt
   ( UnsignedInt
   , magnitude
+  , takeUnsignedInt
   , fromInt
   , toInt
   , asBits
@@ -54,6 +55,10 @@ instance showUnsignedInt :: Pos b => Show (UnsignedInt b) where
 
 magnitude :: ∀ b. UnsignedInt b -> b
 magnitude _ = undefined
+
+takeUnsignedInt :: ∀ b . Pos b => Bits -> UnsignedInt b
+takeUnsignedInt = Bin.take b >>> Bin.stripLeadingZeros >>> UnsignedInt
+  where b = Nat.toInt (undefined :: b)
 
 -- | Converts `Int` value to `UnsignedInt b` for b >= 31
 -- | Behavior for negative `Int` values is unspecified.
