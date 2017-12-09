@@ -38,7 +38,7 @@ spec = suite "SignedInt" do
   test "addition" $ quickCheck propAddition
   test "multiplication" $ quickCheck propMultiplication
   test "Int roundtrip" $ quickCheck propIntRoundtrip
-  test "String roundtrip" $ quickCheck propStringRoundtrip
+  test "baseN roundtrip" $ quickCheck propBaseNRoundtrip
 
 propNumberOfBits :: List ArbSignedInt32 ->
                     List (ArbSemiringOp (SignedInt D32)) ->
@@ -156,8 +156,8 @@ propMultiplication (ArbInt a) (ArbInt b) =
     res = si a * si b
     si = fromInt d32
 
-propStringRoundtrip :: ArbSignedInt32 -> ArbRadix -> Result
-propStringRoundtrip (ArbSignedInt32 i) (ArbRadix radix) =
+propBaseNRoundtrip :: ArbSignedInt32 -> ArbRadix -> Result
+propBaseNRoundtrip (ArbSignedInt32 i) (ArbRadix radix) =
   expected == actual
     <?> "\nExpected:  " <> show expected
     <>  "\nActual:    " <> show actual
